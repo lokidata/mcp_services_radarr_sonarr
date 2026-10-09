@@ -3,7 +3,7 @@
 import argparse
 import logging
 
-from .config import Config, NasConfig, RadarrConfig, SonarrConfig, ServerConfig, load_config, save_config
+from .config import Config, EmbyConfig, JellyfinConfig, PlexConfig, NasConfig, RadarrConfig, SonarrConfig, ServerConfig, load_config, save_config
 from .server import create_server
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -79,6 +79,10 @@ def configure():
             base_path=sonarr_base_path,
             port=sonarr_port
         ),
+        # Media servers are not part of the wizard: keep what is already configured
+        jellyfin_config=config.jellyfin_config if config else JellyfinConfig(),
+        emby_config=config.emby_config if config else EmbyConfig(),
+        plex_config=config.plex_config if config else PlexConfig(),
         server_config=ServerConfig(
             port=server_port
         )
@@ -92,10 +96,10 @@ def configure():
     return new_config
 
 
-def start(config_path=None):
+def start(config_path=None, transport="stdio"):
     """Start the MCP server."""
     server = create_server(config_path)
-    server.start()
+    server.start(transport=transport)
 
 
 def show_status():
@@ -125,6 +129,8 @@ def main():
     # Start command
     start_parser = subparsers.add_parser("start", help="Start the MCP server")
     start_parser.add_argument("--config", help="Path to config.json file")
+    start_parser.add_argument("--transport", choices=["stdio", "http"], default="stdio",
+                              help="stdio (Claude Desktop, default) or http (listens on the configured port)")
     
     # Status command
     status_parser = subparsers.add_parser("status", help="Show the server status")
@@ -134,7 +140,7 @@ def main():
     if args.command == "configure":
         configure()
     elif args.command == "start":
-        start(args.config)
+        start(args.config, args.transport)
     elif args.command == "status":
         show_status()
     else:

@@ -23,3 +23,5 @@ config.json
 
 # Logs
 *.log
+.venv/
+.coverage

@@ -1,191 +1,146 @@
 # Radarr and Sonarr MCP Server
 
-A Python-based Model Context Protocol (MCP) server that provides AI assistants like Claude with access to your Radarr (movies) and Sonarr (TV series) data.
-
-## Overview
-
-This MCP server allows AI assistants to query your movie and TV show collection via Radarr and Sonarr APIs. Built with FastMCP, it implements the standardized protocol for AI context that Claude Desktop and other MCP-compatible clients can use.
+A Python [Model Context Protocol](https://modelcontextprotocol.io) (MCP) server that gives AI assistants such as Claude access to your Radarr (movies) and Sonarr (TV series) libraries, including what you have actually watched according to Emby, Jellyfin and/or Plex.
 
 ## Features
 
-- **Native MCP Implementation**: Built with FastMCP for seamless AI integration
-- **Radarr Integration**: Access your movie collection
-- **Sonarr Integration**: Access your TV show and episode data
-- **Rich Filtering**: Filter by year, watched status, actors, and more
-- **Claude Desktop Compatible**: Works seamlessly with Claude's MCP client
-- **Easy Setup**: Interactive configuration wizard
-- **Well-tested**: Comprehensive test suite for reliability
+- **Radarr and Sonarr**: browse and search your movie and TV libraries
+- **Watched status** from Emby, Jellyfin and Plex (a title counts as watched if any configured service says so)
+- **Per-episode view**: download and watched status for every episode of a series
+- **Reliable matching**: series are linked between Sonarr and Emby/Jellyfin by TVDB id, and movies between Radarr and Emby/Jellyfin by TMDB id, so translated or renamed titles still match (title search is the fallback)
+- **Two transports**: stdio (Claude Desktop) or HTTP
+- Built with [FastMCP](https://gofastmcp.com)
 
 ## Installation
 
-### From Source
-
-1. Clone this repository:
-   ```bash
-   git clone https://github.com/yourusername/radarr-sonarr-mcp.git
-   cd radarr-sonarr-mcp-python
-   ```
-
-2. Install the package:
-   ```bash
-   pip install -e .
-   ```
-
-### Using pip (coming soon)
+Python 3.10 or newer is required.
 
 ```bash
-pip install radarr-sonarr-mcp
+git clone https://github.com/lokidata/mcp_services_radarr_sonarr.git
+cd mcp_services_radarr_sonarr
+pip install -e .
 ```
-
-## Quick Start
-
-1. Configure the server:
-   ```bash
-   radarr-sonarr-mcp configure
-   ```
-   Follow the prompts to enter your Radarr/Sonarr API keys and other settings.
-
-2. Start the server:
-   ```bash
-   radarr-sonarr-mcp start
-   ```
-
-3. Connect Claude Desktop:
-   - In Claude Desktop, go to Settings > MCP Servers
-   - Add a new server with URL: `http://localhost:3000` (or your configured port)
 
 ## Configuration
 
-The configuration wizard will guide you through setting up:
+The server reads its configuration from the first of these that applies:
 
-- NAS/Server IP address
-- Radarr API key and port
-- Sonarr API key and port
-- MCP server port
+1. the file given with `--config` (or the `RADARR_SONARR_MCP_CONFIG` environment variable)
+2. environment variables, when `RADARR_API_KEY` or `SONARR_API_KEY` is set
+3. `./config.json`
 
-You can also manually edit the `config.json` file:
+If none is usable, the server stops with an explicit error instead of silently using empty defaults.
+
+### Environment variables
+
+| Variable | Default | Description |
+|---|---|---|
+| `NAS_IP` | `127.0.0.1` | Host running Radarr and Sonarr |
+| `RADARR_API_KEY` / `SONARR_API_KEY` | | API keys (Settings > General) |
+| `RADARR_PORT` / `SONARR_PORT` | `7878` / `8989` | Ports |
+| `RADARR_BASE_PATH` / `SONARR_BASE_PATH` | `/api/v3` | API base paths |
+| `EMBY_BASE_URL`, `EMBY_API_KEY`, `EMBY_USER_ID` | | Optional Emby server |
+| `JELLYFIN_BASE_URL`, `JELLYFIN_API_KEY`, `JELLYFIN_USER_ID` | | Optional Jellyfin server |
+| `PLEX_BASE_URL`, `PLEX_TOKEN` | | Optional Plex server |
+| `MCP_SERVER_PORT` | `3000` | Port used by the HTTP transport |
+
+Media server URLs may omit the scheme and port: `192.168.1.10` becomes `http://192.168.1.10:8096` for Emby and Jellyfin, and `:32400` for Plex.
+
+For Emby and Jellyfin, `*_USER_ID` is the user's **id** (a hex string), not the user name. The watched status is the one of that user. List the ids with:
+
+```bash
+curl "http://<host>:8096/Users?api_key=<api key>"
+```
+
+### Configuration file
+
+`config.json` (ignored by git) uses this layout; the `embyConfig`, `jellyfinConfig` and `plexConfig` sections are optional:
 
 ```json
 {
-  "nasConfig": {
-    "ip": "10.0.0.23",
-    "port": "7878"
-  },
-  "radarrConfig": {
-    "apiKey": "YOUR_RADARR_API_KEY",
-    "basePath": "/api/v3",
-    "port": "7878"
-  },
-  "sonarrConfig": {
-    "apiKey": "YOUR_SONARR_API_KEY",
-    "basePath": "/api/v3",
-    "port": "8989"
-  },
-  "server": {
-    "port": 3000
+  "nasConfig": { "ip": "192.168.1.10", "port": "7878" },
+  "radarrConfig": { "apiKey": "YOUR_RADARR_API_KEY", "basePath": "/api/v3", "port": "7878" },
+  "sonarrConfig": { "apiKey": "YOUR_SONARR_API_KEY", "basePath": "/api/v3", "port": "8989" },
+  "embyConfig": { "baseUrl": "http://192.168.1.10:8096", "apiKey": "...", "userId": "..." },
+  "server": { "port": 3000 }
+}
+```
+
+`radarr-sonarr-mcp configure` is an interactive wizard for the Radarr/Sonarr/server settings. It keeps any media server section already present in the file; add those sections by hand.
+
+## Usage
+
+```bash
+radarr-sonarr-mcp status                   # show the current configuration
+radarr-sonarr-mcp start                    # stdio transport (default)
+radarr-sonarr-mcp start --transport http   # HTTP on the configured port
+radarr-sonarr-mcp start --config /path/to/config.json
+```
+
+### Claude Desktop
+
+Add the server to `claude_desktop_config.json` (see [config.json.example](config.json.example)):
+
+```json
+{
+  "mcpServers": {
+    "radarr_sonarr": {
+      "command": "uv",
+      "args": ["--directory", "/path/to/mcp_services_radarr_sonarr", "run", "radarr-sonarr-mcp", "start"],
+      "env": {
+        "NAS_IP": "192.168.1.10",
+        "RADARR_API_KEY": "your_radarr_api_key",
+        "SONARR_API_KEY": "your_sonarr_api_key",
+        "EMBY_BASE_URL": "http://192.168.1.10:8096",
+        "EMBY_API_KEY": "your_emby_api_key",
+        "EMBY_USER_ID": "your_emby_user_id"
+      }
+    }
   }
 }
 ```
 
-## Available MCP Tools
+## MCP tools
 
-This server provides the following tools to Claude:
+| Tool | Description |
+|---|---|
+| `get_available_movies` | Movies from Radarr. Filters: `year`, `downloaded`, `watched`, `actors` |
+| `lookup_movie` | Search movies by title (Radarr lookup) |
+| `get_available_series` | Series from Sonarr. Filters: `year`, `downloaded`, `watched`, `actors` |
+| `lookup_series` | Search series by title (Sonarr lookup) |
+| `get_episodes` | Episodes of a series with download and watched status. Arguments: `series`, `season`, `watched`, `downloaded` |
 
-### Movies
-- `get_available_movies` - Get a list of movies with optional filters
-- `lookup_movie` - Search for a movie by title
-- `get_movie_details` - Get detailed information about a specific movie
+`get_episodes` finds the series in Sonarr by title (exact match preferred) and returns an error with candidates if the title is unknown or ambiguous. Each episode has `season`, `episode`, `title`, `airDate`, `downloaded`, `monitored` and `watched`. `watched` is `null` when no Emby/Jellyfin server is configured or the series is not in its library.
 
-### Series
-- `get_available_series` - Get a list of TV series with optional filters
-- `lookup_series` - Search for a TV series by title
-- `get_series_details` - Get detailed information about a specific series
-- `get_series_episodes` - Get episodes for a specific series
+Resources: `radarr-sonarr://movies` and `radarr-sonarr://series`.
 
-### Resources
+Example questions for Claude:
 
-The server also provides standard MCP resources:
+- "Which episodes of Slow Horses have I downloaded but not watched?"
+- "Do I have any unwatched movies from 2023?"
+- "What is missing from season 6 of Slow Horses?"
 
-- `/movies` - Browse all available movies
-- `/series` - Browse all available TV series
+## Watched status: how it works
 
-### Filtering Options
-
-Most tools support various filtering options:
-
-- `year` - Filter by release year
-- `watched` - Filter by watched status (true/false)
-- `downloaded` - Filter by download status (true/false)
-- `watchlist` - Filter by watchlist status (true/false)
-- `actors` - Filter by actor/cast name
-- `actresses` - Filter by actress name (movies only)
-
-## Example Queries for Claude
-
-Once your MCP server is connected to Claude Desktop, you can ask questions like:
-
-- "What sci-fi movies from 2023 do I have?"
-- "Show me TV shows starring Pedro Pascal"
-- "Do I have any unwatched episodes of The Mandalorian?"
-- "Find movies with Tom Hanks that I haven't watched yet"
-- "How many episodes of Stranger Things do I have downloaded?"
-
-## Finding API Keys
-
-### Radarr API Key
-1. Open Radarr in your browser
-2. Go to Settings > General
-3. Find the "API Key" section
-4. Copy the API Key
-
-### Sonarr API Key
-1. Open Sonarr in your browser  
-2. Go to Settings > General
-3. Find the "API Key" section
-4. Copy the API Key
-
-## Command-Line Interface
-
-The package provides a command-line interface:
-
-- `radarr-sonarr-mcp configure` - Run configuration wizard
-- `radarr-sonarr-mcp start` - Start the MCP server
-- `radarr-sonarr-mcp status` - Show the current configuration
+- **Emby and Jellyfin**: the `Played` flag of the configured user (Emby can report `PlayCount: 0` for items marked as watched, so the play count alone is not used). A series is watched when all its episodes are played.
+- **Plex**: series and movie checks exist but are basic; Plex is **not** used by `get_episodes`.
+- **No media server configured**: movies are reported as not watched, and series fall back to a Sonarr heuristic (all episodes downloaded), which is not a real watched status.
+- Sonarr series and Radarr movies are linked to Emby/Jellyfin by TVDB / TMDB id (this requires the ids to be present in the media server's metadata). Without a match, or for Plex, the title is used and may pick the wrong item when titles are ambiguous.
 
 ## Development
 
-### Running Tests
-
-To run the test suite:
-
 ```bash
-# Install development dependencies
-pip install -e ".[dev]"
-
-# Run tests
-pytest
-
-# Run tests with coverage
-pytest --cov=radarr_sonarr_mcp
+python -m venv .venv
+.venv/bin/pip install -e ".[dev]"
+.venv/bin/pytest
 ```
 
-### Local Development
+`python run.py` runs the command line interface without installing the package.
 
-For quick development and testing:
+## Finding API keys
 
-```bash
-# Run directly without installation
-python run.py
-```
+Radarr and Sonarr: Settings > General > API Key. Emby: Dashboard > Advanced > API Keys. Jellyfin: Dashboard > API Keys.
 
-## Requirements
+## Security
 
-- Python 3.7+
-- FastMCP
-- Requests
-- Pydantic
-
-## Notes
-
-- The watched/watchlist status functionality assumes these are tracked using specific mechanisms in Radarr/Sonarr. You may need to adapt this to your specific setup.
-- For security reasons, it's recommended to run this server only on your local network.
+API keys are sent to your services over plain HTTP by default. Run the server only on a trusted local network and keep `config.json` out of version control (it is git-ignored).

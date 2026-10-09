@@ -3,21 +3,24 @@
     "radarr_sonarr": {
       "command": "uv",
       "args": [
-        "--directory", "D:/berry/Projects/radarr-sonarr-mcp-python",
-        "run", "radarr_sonarr_mcp/server.py"
+        "--directory", "/path/to/mcp_services_radarr_sonarr",
+        "run", "radarr-sonarr-mcp", "start"
       ],
       "env": {
-        "NAS_IP": "10.0.0.23",
+        "NAS_IP": "192.168.1.10",
         "RADARR_PORT": "7878",
         "SONARR_PORT": "8989",
-        "RADARR_API_KEY": "x",
-        "SONARR_API_KEY": "x",
+        "RADARR_API_KEY": "your_radarr_api_key",
+        "SONARR_API_KEY": "your_sonarr_api_key",
         "MCP_SERVER_PORT": "3000",
-        "JELLYFIN_BASE_URL": "http://10.0.0.23:5055",
-        "JELLYFIN_API_KEY": "your_jellyfin_api_key",
-        "JELLYFIN_USER_ID": "your_jellyfin_user_id",
-        "PLEX_BASE_URL": "http://10.0.0.23:32400",
-        "PLEX_TOKEN": "your_plex_token"
+        "JELLYFIN_BASE_URL": "",
+        "JELLYFIN_API_KEY": "",
+        "JELLYFIN_USER_ID": "",
+        "EMBY_BASE_URL": "",
+        "EMBY_API_KEY": "",
+        "EMBY_USER_ID": "",
+        "PLEX_BASE_URL": "",
+        "PLEX_TOKEN": ""
       }
     }
   }

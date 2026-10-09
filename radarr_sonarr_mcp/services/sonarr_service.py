@@ -38,6 +38,7 @@ class Series:
     genres: List[str]
     statistics: Optional[Statistics]
     data: Dict[str, Any]  # Store original data for reference
+    tvdb_id: Optional[int] = None
     
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'Series':
@@ -56,7 +57,8 @@ class Series:
             tags=data.get('tags', []),
             genres=data.get('genres', []),
             statistics=statistics,
-            data=data
+            data=data,
+            tvdb_id=data.get('tvdbId')
         )
 
 

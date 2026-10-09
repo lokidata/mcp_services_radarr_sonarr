@@ -1,6 +1,8 @@
 import requests
 from typing import Any, Dict, List
 
+from ..config import PlexConfig
+
 class PlexService:
     """
     Service for interacting with the Plex API.
@@ -8,9 +10,9 @@ class PlexService:
     Note: Plex’s API typically returns XML, but here we assume a JSON endpoint 
     (or you can use an XML parser). This is a simplified example.
     """
-    def __init__(self, config: Dict[str, Any]):
-        self.base_url = config.get("baseUrl")  # e.g., "http://10.0.0.23:32400"
-        self.token = config.get("token")
+    def __init__(self, config: PlexConfig):
+        self.base_url = config.base_url
+        self.token = config.token
     
     def search_series(self, title: str) -> List[Dict[str, Any]]:
         url = f"{self.base_url}/library/search"
@@ -35,7 +37,7 @@ class PlexService:
         except Exception:
             return []
     
-    def is_series_watched(self, series_title: str) -> bool:
+    def is_series_watched(self, series_title: str, tvdb_id=None) -> bool:
         items = self.search_series(series_title)
         if not items:
             return False
@@ -61,7 +63,7 @@ class PlexService:
         except Exception:
             return []
     
-    def is_movie_watched(self, movie_title: str) -> bool:
+    def is_movie_watched(self, movie_title: str, tmdb_id=None) -> bool:
         items = self.search_movie(movie_title)
         if not items:
             return False
