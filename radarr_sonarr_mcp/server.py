@@ -269,12 +269,13 @@ class RadarrSonarrMCPServer:
 
     # ------------------------------------------------------------------
 
-    def start(self, transport: str = "stdio"):
-        """Run the server. 'stdio' for Claude Desktop, 'http' to listen on server.port."""
+    def start(self, transport: str = "stdio", host: Optional[str] = None):
+        """Run the server. 'stdio' for Claude Desktop, 'http' to listen on server.host:server.port."""
         if transport == "http":
+            host = host or self.config.server_config.host
             port = self.config.server_config.port
-            logger.info(f"Starting Radarr-Sonarr MCP Server over HTTP on port {port}")
-            self.server.run(transport="http", port=port)
+            logger.info(f"Starting Radarr-Sonarr MCP Server over HTTP on {host}:{port}")
+            self.server.run(transport="http", host=host, port=port)
         else:
             self.server.run()
 
