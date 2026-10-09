@@ -109,8 +109,8 @@ Pull requests only build the image to check it, they do not publish it.
 
 To run it from Portainer (Stacks > Add stack > Web editor), paste [docker-compose.portainer.yml](docker-compose.portainer.yml) and fill in the variables of [.env.example](.env.example) in the "Environment variables" section. Optional variables: `IMAGE_TAG` (default `latest`, use a `sha-…` tag to pin a build), `MCP_SERVER_PORT` (published port) and `MCP_BIND` (default `127.0.0.1`).
 
-- The package is private the first time it is published: either make it public (GitHub > Packages > the image > Package settings > Change visibility) or add `ghcr.io` as a registry in Portainer with a personal access token that has the `read:packages` scope.
-- To reach the server from another machine (for example Claude Desktop on your PC through `mcp-remote`), set `MCP_BIND` to `0.0.0.0` or to the NAS LAN address, and use `http://<nas-ip>:3000/mcp`. The server has no authentication: keep it on a trusted network.
+- The image of a public repository can be pulled anonymously, so Portainer needs no registry credentials. If your fork's package is private (check GitHub > Packages > the image > Package settings), make it public or add `ghcr.io` as a registry in Portainer with a personal access token that has the `read:packages` scope.
+- To reach the server from another machine (for example Claude Desktop on your PC through `mcp-remote`), set `MCP_BIND` to `0.0.0.0` or to the NAS LAN address, and use `http://<nas-ip>:3000/mcp` (with `--allow-http` in `mcp-remote`, see [Claude Desktop](#claude-desktop)). The server has no authentication and the traffic is not encrypted: keep it on a trusted network.
 - Update with "Pull and redeploy" in Portainer.
 
 Clients that only speak stdio (such as Claude Desktop) need a bridge: see [Claude Desktop](#claude-desktop) below.
@@ -141,6 +141,19 @@ Start the container first (see [Docker](#docker)), then bridge it to Claude Desk
 ```
 
 Use the port you published with `MCP_SERVER_PORT` if you changed it. The container must be running before Claude Desktop starts (it restarts automatically with Docker thanks to `restart: unless-stopped`).
+
+If the container runs on another machine (for example a NAS), use its address and add `--allow-http`. Without it `mcp-remote` refuses plain `http://` URLs that are not `localhost` and the server shows up as disconnected in Claude Desktop (the error is in `mcp-server-radarr_sonarr.log`). The traffic is then unencrypted, so keep it on a trusted network, and publish the container on the LAN (`MCP_BIND=0.0.0.0` in the Portainer stack):
+
+```json
+{
+  "mcpServers": {
+    "radarr_sonarr": {
+      "command": "npx",
+      "args": ["-y", "mcp-remote@0.14.3", "http://192.168.1.10:3000/mcp", "--allow-http"]
+    }
+  }
+}
+```
 
 #### Without Docker
 
