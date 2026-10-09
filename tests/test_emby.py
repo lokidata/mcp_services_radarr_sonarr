@@ -102,3 +102,31 @@ def test_configure_keeps_media_servers(tmp_path, monkeypatch):
     monkeypatch.setattr("builtins.input", lambda *_: "")
     cli.configure()
     assert load_config(path).emby_config.api_key == "k"
+
+
+def test_find_movie_by_tmdb_id_beats_title():
+    index = {"603": {"Id": "M", "Name": "Matrix", "UserData": {"Played": True}}}
+    with patch.object(EmbyService, "_movies_by_tmdb", return_value=index), \
+            patch("radarr_sonarr_mcp.services.jellyfin_service.requests.get") as get:
+        service = _service()
+        assert service.find_movie("The Matrix", 603)["Id"] == "M"
+        assert service.is_movie_watched("The Matrix", 603)
+        get.assert_not_called()
+
+
+def test_movie_falls_back_to_title():
+    payload = {"Items": [{"Name": "Avatar 2", "UserData": {}}, {"Name": "Avatar", "UserData": {"Played": True}}]}
+    with patch.object(EmbyService, "_movies_by_tmdb", return_value={}), \
+            patch("radarr_sonarr_mcp.services.jellyfin_service.requests.get") as get:
+        get.return_value.json.return_value = payload
+        assert _service().is_movie_watched("Avatar", 19995)
+
+
+def test_indexes_are_separate_per_type():
+    service = _service()
+    with patch("radarr_sonarr_mcp.services.jellyfin_service.requests.get") as get:
+        get.return_value.json.return_value = {"Items": [{"ProviderIds": {"Tmdb": "1", "Tvdb": "2"}}]}
+        assert list(service._movies_by_tmdb()) == ["1"]
+        assert list(service._series_by_tvdb()) == ["2"]
+        service._movies_by_tmdb(); service._series_by_tvdb()
+        assert get.call_count == 2

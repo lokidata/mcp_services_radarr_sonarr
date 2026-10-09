@@ -7,7 +7,7 @@ A Python [Model Context Protocol](https://modelcontextprotocol.io) (MCP) server 
 - **Radarr and Sonarr**: browse and search your movie and TV libraries
 - **Watched status** from Emby, Jellyfin and Plex (a title counts as watched if any configured service says so)
 - **Per-episode view**: download and watched status for every episode of a series
-- **Reliable matching**: series are linked between Sonarr and Emby/Jellyfin by TVDB id, so translated or renamed titles still match (title search is the fallback)
+- **Reliable matching**: series are linked between Sonarr and Emby/Jellyfin by TVDB id, and movies between Radarr and Emby/Jellyfin by TMDB id, so translated or renamed titles still match (title search is the fallback)
 - **Two transports**: stdio (Claude Desktop) or HTTP
 - Built with [FastMCP](https://gofastmcp.com)
 
@@ -125,7 +125,7 @@ Example questions for Claude:
 - **Emby and Jellyfin**: the `Played` flag of the configured user (Emby can report `PlayCount: 0` for items marked as watched, so the play count alone is not used). A series is watched when all its episodes are played.
 - **Plex**: series and movie checks exist but are basic; Plex is **not** used by `get_episodes`.
 - **No media server configured**: movies are reported as not watched, and series fall back to a Sonarr heuristic (all episodes downloaded), which is not a real watched status.
-- Sonarr and Emby/Jellyfin series are linked by TVDB id; movies and Plex are matched by title and may pick the wrong item when titles are ambiguous.
+- Sonarr series and Radarr movies are linked to Emby/Jellyfin by TVDB / TMDB id (this requires the ids to be present in the media server's metadata). Without a match, or for Plex, the title is used and may pick the wrong item when titles are ambiguous.
 
 ## Development
 

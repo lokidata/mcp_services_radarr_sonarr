@@ -63,7 +63,7 @@ class PlexService:
         except Exception:
             return []
     
-    def is_movie_watched(self, movie_title: str) -> bool:
+    def is_movie_watched(self, movie_title: str, tmdb_id=None) -> bool:
         items = self.search_movie(movie_title)
         if not items:
             return False

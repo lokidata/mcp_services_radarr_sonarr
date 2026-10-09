@@ -18,6 +18,7 @@ class Movie:
     tags: List[int] = None
     genres: List[str] = None
     data: Dict[str, Any] = None
+    tmdb_id: Optional[int] = None
     
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'Movie':
@@ -31,7 +32,8 @@ class Movie:
             status=data.get('status', ''),
             tags=data.get('tags', []),
             genres=data.get('genres', []),
-            data=data
+            data=data,
+            tmdb_id=data.get('tmdbId')
         )
 
 

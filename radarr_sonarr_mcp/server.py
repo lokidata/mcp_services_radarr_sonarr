@@ -89,7 +89,8 @@ class RadarrSonarrMCPServer:
 
     def is_watched_movie(self, movie) -> bool:
         return self._watched(
-            "is_movie_watched", movie.title, lambda: self.radarr_service.is_movie_watched(movie)
+            "is_movie_watched", movie.title, lambda: self.radarr_service.is_movie_watched(movie),
+            tmdb_id=movie.tmdb_id,
         )
 
     # ------------------------------------------------------------------
