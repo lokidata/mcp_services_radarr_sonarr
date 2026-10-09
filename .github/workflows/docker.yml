@@ -7,6 +7,9 @@ on:
   pull_request:
     branches: [development]
 
+permissions:
+  contents: read
+
 env:
   IMAGE: ghcr.io/${{ github.repository }}
 
