@@ -94,6 +94,25 @@ docker build -t radarr-sonarr-mcp .
 docker run -d --env-file .env -e MCP_SERVER_PORT=3000 -p 127.0.0.1:3000:3000 radarr-sonarr-mcp
 ```
 
+#### Prebuilt image and Portainer
+
+A GitHub Action ([docker.yml](.github/workflows/docker.yml)) runs the tests, then builds a multi-architecture image (`linux/amd64`, `linux/arm64`) and publishes it to GitHub Container Registry on every merge into `development` and on `v*` tags:
+
+| Tag | When |
+|---|---|
+| `latest` | latest build of `development` |
+| `development` | same build, by branch name |
+| `sha-<commit>` | every published build, to pin an exact commit |
+| `1.2.3`, `1.2` | when a `v1.2.3` git tag is pushed |
+
+Pull requests only build the image to check it, they do not publish it.
+
+To run it from Portainer (Stacks > Add stack > Web editor), paste [docker-compose.portainer.yml](docker-compose.portainer.yml) and fill in the variables of [.env.example](.env.example) in the "Environment variables" section. Optional variables: `IMAGE_TAG` (default `latest`, use a `sha-…` tag to pin a build), `MCP_SERVER_PORT` (published port) and `MCP_BIND` (default `127.0.0.1`).
+
+- The package is private the first time it is published: either make it public (GitHub > Packages > the image > Package settings > Change visibility) or add `ghcr.io` as a registry in Portainer with a personal access token that has the `read:packages` scope.
+- To reach the server from another machine (for example Claude Desktop on your PC through `mcp-remote`), set `MCP_BIND` to `0.0.0.0` or to the NAS LAN address, and use `http://<nas-ip>:3000/mcp`. The server has no authentication: keep it on a trusted network.
+- Update with "Pull and redeploy" in Portainer.
+
 Clients that only speak stdio (such as Claude Desktop) need a bridge: see [Claude Desktop](#claude-desktop) below.
 
 ### Claude Desktop
