@@ -94,11 +94,38 @@ docker build -t radarr-sonarr-mcp .
 docker run -d --env-file .env -e MCP_SERVER_PORT=3000 -p 127.0.0.1:3000:3000 radarr-sonarr-mcp
 ```
 
-Clients that only speak stdio (such as Claude Desktop) can use the local installation below, or an HTTP bridge like `mcp-remote`.
+Clients that only speak stdio (such as Claude Desktop) need a bridge: see [Claude Desktop](#claude-desktop) below.
 
 ### Claude Desktop
 
-Add the server to `claude_desktop_config.json` (see [config.json.example](config.json.example)):
+Claude Desktop only speaks stdio. Add the server to its configuration file:
+
+- Linux: `~/.config/Claude/claude_desktop_config.json`
+- macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
+- Windows: `%APPDATA%\Claude\claude_desktop_config.json`
+
+`mcpServers` is a top-level key of that file: add it next to the existing keys (do not paste a second JSON object after them, the file would become invalid). Then quit Claude Desktop completely and start it again.
+
+#### With the Docker container (recommended)
+
+Start the container first (see [Docker](#docker)), then bridge it to Claude Desktop with [`mcp-remote`](https://www.npmjs.com/package/mcp-remote). This needs Node.js, and your API keys stay in the container's `.env` instead of the Claude Desktop configuration:
+
+```json
+{
+  "mcpServers": {
+    "radarr_sonarr": {
+      "command": "npx",
+      "args": ["-y", "mcp-remote@0.14.3", "http://127.0.0.1:3000/mcp"]
+    }
+  }
+}
+```
+
+Use the port you published with `MCP_SERVER_PORT` if you changed it. The container must be running before Claude Desktop starts (it restarts automatically with Docker thanks to `restart: unless-stopped`).
+
+#### Without Docker
+
+Claude Desktop starts the server itself over stdio (see [config.json.example](config.json.example)). Here the keys are part of the Claude Desktop configuration:
 
 ```json
 {
