@@ -16,6 +16,9 @@
         "JELLYFIN_BASE_URL": "",
         "JELLYFIN_API_KEY": "",
         "JELLYFIN_USER_ID": "",
+        "EMBY_BASE_URL": "",
+        "EMBY_API_KEY": "",
+        "EMBY_USER_ID": "",
         "PLEX_BASE_URL": "",
         "PLEX_TOKEN": ""
       }

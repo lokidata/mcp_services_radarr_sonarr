@@ -55,6 +55,17 @@ class JellyfinConfig:
 
 
 @dataclass
+class EmbyConfig:
+    base_url: str = ""
+    api_key: str = ""
+    user_id: str = ""
+
+    @property
+    def enabled(self) -> bool:
+        return bool(self.base_url)
+
+
+@dataclass
 class PlexConfig:
     base_url: str = ""
     token: str = ""
@@ -76,6 +87,7 @@ class Config:
     radarr_config: RadarrConfig = field(default_factory=RadarrConfig)
     sonarr_config: SonarrConfig = field(default_factory=SonarrConfig)
     jellyfin_config: JellyfinConfig = field(default_factory=JellyfinConfig)
+    emby_config: EmbyConfig = field(default_factory=EmbyConfig)
     plex_config: PlexConfig = field(default_factory=PlexConfig)
     server_config: ServerConfig = field(default_factory=ServerConfig)
 
@@ -108,6 +120,12 @@ class Config:
                 "apiKey": self.jellyfin_config.api_key,
                 "userId": self.jellyfin_config.user_id,
             }
+        if self.emby_config.enabled:
+            data["embyConfig"] = {
+                "baseUrl": self.emby_config.base_url,
+                "apiKey": self.emby_config.api_key,
+                "userId": self.emby_config.user_id,
+            }
         if self.plex_config.enabled:
             data["plexConfig"] = {
                 "baseUrl": self.plex_config.base_url,
@@ -121,6 +139,7 @@ class Config:
         radarr = data.get("radarrConfig", {})
         sonarr = data.get("sonarrConfig", {})
         jellyfin = data.get("jellyfinConfig", {})
+        emby = data.get("embyConfig", {})
         plex = data.get("plexConfig", {})
         nas_cfg = NasConfig(ip=nas.get("ip", "127.0.0.1"), port=str(nas.get("port", "7878")))
         return cls(
@@ -139,6 +158,11 @@ class Config:
                 base_url=jellyfin.get("baseUrl", ""),
                 api_key=jellyfin.get("apiKey", ""),
                 user_id=jellyfin.get("userId", ""),
+            ),
+            emby_config=EmbyConfig(
+                base_url=emby.get("baseUrl", ""),
+                api_key=emby.get("apiKey", ""),
+                user_id=emby.get("userId", ""),
             ),
             plex_config=PlexConfig(
                 base_url=plex.get("baseUrl", ""),
@@ -166,6 +190,11 @@ class Config:
                 base_url=env("JELLYFIN_BASE_URL", ""),
                 api_key=env("JELLYFIN_API_KEY", ""),
                 user_id=env("JELLYFIN_USER_ID", ""),
+            ),
+            emby_config=EmbyConfig(
+                base_url=env("EMBY_BASE_URL", ""),
+                api_key=env("EMBY_API_KEY", ""),
+                user_id=env("EMBY_USER_ID", ""),
             ),
             plex_config=PlexConfig(
                 base_url=env("PLEX_BASE_URL", ""),

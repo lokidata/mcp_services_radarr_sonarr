@@ -8,6 +8,7 @@ from typing import Optional
 from fastmcp import FastMCP
 
 from .config import Config, load_config
+from .services.emby_service import EmbyService
 from .services.jellyfin_service import JellyfinService
 from .services.plex_service import PlexService
 from .services.radarr_service import RadarrService
@@ -33,6 +34,7 @@ class RadarrSonarrMCPServer:
         self.sonarr_service = SonarrService(config.sonarr_config)
         self.radarr_service = RadarrService(config.radarr_config)
         self.jellyfin = JellyfinService(config.jellyfin_config) if config.jellyfin_config.enabled else None
+        self.emby = EmbyService(config.emby_config) if config.emby_config.enabled else None
         self.plex = PlexService(config.plex_config) if config.plex_config.enabled else None
         self._register_tools()
         self._register_resources()
@@ -44,10 +46,10 @@ class RadarrSonarrMCPServer:
     def _watched(self, check_name: str, title: str, fallback) -> bool:
         """True if any configured media service reports the title as watched.
 
-        Without Plex/Jellyfin, falls back to the Radarr/Sonarr heuristic.
+        Without Plex/Jellyfin/Emby, falls back to the Radarr/Sonarr heuristic.
         """
         statuses = []
-        for name, client in (("Jellyfin", self.jellyfin), ("Plex", self.plex)):
+        for name, client in (("Jellyfin", self.jellyfin), ("Emby", self.emby), ("Plex", self.plex)):
             if client is None:
                 continue
             try:
@@ -78,7 +80,7 @@ class RadarrSonarrMCPServer:
                                  actors: Optional[str] = None) -> str:
             """
             Get a list of available TV series with optional filters.
-            Watched status is determined using Plex and/or Jellyfin; if either reports watched, the series is considered watched.
+            Watched status is determined using Plex, Jellyfin and/or Emby; if any reports watched, the series is considered watched.
             """
             result = self.sonarr_service.get_all_series()
 
@@ -133,7 +135,7 @@ class RadarrSonarrMCPServer:
                                  actors: Optional[str] = None) -> str:
             """
             Get a list of all available movies with optional filters.
-            Watched status is determined using Plex and/or Jellyfin.
+            Watched status is determined using Plex, Jellyfin and/or Emby.
             """
             result = self.radarr_service.get_all_movies()
 
