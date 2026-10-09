@@ -130,3 +130,10 @@ def test_indexes_are_separate_per_type():
         assert list(service._series_by_tvdb()) == ["2"]
         service._movies_by_tmdb(); service._series_by_tvdb()
         assert get.call_count == 2
+
+
+def test_server_host_config(monkeypatch):
+    assert Config().server_config.host == "127.0.0.1"
+    monkeypatch.setenv("MCP_SERVER_HOST", "0.0.0.0")
+    assert Config.from_env().server_config.host == "0.0.0.0"
+    assert Config.from_dict({"server": {"host": "0.0.0.0"}}).server_config.host == "0.0.0.0"

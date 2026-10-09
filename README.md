@@ -43,6 +43,7 @@ If none is usable, the server stops with an explicit error instead of silently u
 | `JELLYFIN_BASE_URL`, `JELLYFIN_API_KEY`, `JELLYFIN_USER_ID` | | Optional Jellyfin server |
 | `PLEX_BASE_URL`, `PLEX_TOKEN` | | Optional Plex server |
 | `MCP_SERVER_PORT` | `3000` | Port used by the HTTP transport |
+| `MCP_SERVER_HOST` | `127.0.0.1` | Interface used by the HTTP transport (`0.0.0.0` to listen everywhere) |
 
 Media server URLs may omit the scheme and port: `192.168.1.10` becomes `http://192.168.1.10:8096` for Emby and Jellyfin, and `:32400` for Plex.
 
@@ -76,6 +77,24 @@ radarr-sonarr-mcp start                    # stdio transport (default)
 radarr-sonarr-mcp start --transport http   # HTTP on the configured port
 radarr-sonarr-mcp start --config /path/to/config.json
 ```
+
+### Docker
+
+```bash
+cp .env.example .env      # then fill in your API keys and addresses
+docker compose up -d --build
+```
+
+The MCP endpoint is then `http://localhost:3000/mcp` (streamable HTTP). The compose file publishes the port on `127.0.0.1` only, because the server has no authentication: do not expose it to an untrusted network. Change `MCP_SERVER_PORT` in `.env` to publish another host port.
+
+Inside the container, `NAS_IP` must be reachable from Docker's network (use the LAN address of your NAS, not `127.0.0.1`). Without compose:
+
+```bash
+docker build -t radarr-sonarr-mcp .
+docker run -d --env-file .env -e MCP_SERVER_PORT=3000 -p 127.0.0.1:3000:3000 radarr-sonarr-mcp
+```
+
+Clients that only speak stdio (such as Claude Desktop) can use the local installation below, or an HTTP bridge like `mcp-remote`.
 
 ### Claude Desktop
 

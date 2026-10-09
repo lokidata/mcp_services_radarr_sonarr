@@ -105,6 +105,7 @@ class PlexConfig:
 @dataclass
 class ServerConfig:
     port: int = 3000
+    host: str = "127.0.0.1"  # use 0.0.0.0 to listen on all interfaces (e.g. in Docker)
 
 
 @dataclass
@@ -139,7 +140,7 @@ class Config:
                 "basePath": self.sonarr_config.base_path,
                 "port": self.sonarr_config.port,
             },
-            "server": {"port": self.server_config.port},
+            "server": {"port": self.server_config.port, "host": self.server_config.host},
         }
         if self.jellyfin_config.enabled:
             data["jellyfinConfig"] = {
@@ -195,7 +196,10 @@ class Config:
                 base_url=plex.get("baseUrl", ""),
                 token=plex.get("token", ""),
             ),
-            server_config=ServerConfig(port=int(data.get("server", {}).get("port", 3000))),
+            server_config=ServerConfig(
+                port=int(data.get("server", {}).get("port", 3000)),
+                host=data.get("server", {}).get("host", "127.0.0.1"),
+            ),
         )
 
     @classmethod
@@ -227,7 +231,10 @@ class Config:
                 base_url=env("PLEX_BASE_URL", ""),
                 token=env("PLEX_TOKEN", ""),
             ),
-            server_config=ServerConfig(port=int(env("MCP_SERVER_PORT", "3000"))),
+            server_config=ServerConfig(
+                port=int(env("MCP_SERVER_PORT", "3000")),
+                host=env("MCP_SERVER_HOST", "127.0.0.1"),
+            ),
         )
 
 

@@ -96,10 +96,10 @@ def configure():
     return new_config
 
 
-def start(config_path=None, transport="stdio"):
+def start(config_path=None, transport="stdio", host=None):
     """Start the MCP server."""
     server = create_server(config_path)
-    server.start(transport=transport)
+    server.start(transport=transport, host=host)
 
 
 def show_status():
@@ -129,6 +129,7 @@ def main():
     # Start command
     start_parser = subparsers.add_parser("start", help="Start the MCP server")
     start_parser.add_argument("--config", help="Path to config.json file")
+    start_parser.add_argument("--host", help="Interface for the http transport (default: 127.0.0.1, or MCP_SERVER_HOST)")
     start_parser.add_argument("--transport", choices=["stdio", "http"], default="stdio",
                               help="stdio (Claude Desktop, default) or http (listens on the configured port)")
     
@@ -140,7 +141,7 @@ def main():
     if args.command == "configure":
         configure()
     elif args.command == "start":
-        start(args.config, args.transport)
+        start(args.config, args.transport, args.host)
     elif args.command == "status":
         show_status()
     else:
