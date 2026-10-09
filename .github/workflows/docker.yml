@@ -1,14 +1,17 @@
 name: Docker image
 
+# Releases only: the image is built and published on commits to main.
+# Pull requests and development are covered by ci.yml (tests only).
 on:
   push:
-    branches: [development]
-    tags: ["v*"]
-  pull_request:
-    branches: [development]
+    branches: [main]
 
 permissions:
   contents: read
+
+concurrency:
+  group: docker-image
+  cancel-in-progress: false
 
 env:
   IMAGE: ghcr.io/${{ github.repository }}
@@ -34,12 +37,14 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      - name: Project version
+        id: version
+        run: echo "version=$(python3 -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")" >> "$GITHUB_OUTPUT"
+
       - uses: docker/setup-qemu-action@v4
       - uses: docker/setup-buildx-action@v4
 
-      # Images are only pushed from development and version tags, never from pull requests
       - name: Log in to GitHub Container Registry
-        if: github.event_name != 'pull_request'
         uses: docker/login-action@v4
         with:
           registry: ghcr.io
@@ -52,18 +57,16 @@ jobs:
         with:
           images: ${{ env.IMAGE }}
           tags: |
-            type=raw,value=latest,enable={{is_default_branch}}
-            type=ref,event=branch
+            type=raw,value=latest
+            type=raw,value=${{ steps.version.outputs.version }}
             type=sha,format=short
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
 
       - name: Build and push
         uses: docker/build-push-action@v7
         with:
           context: .
           platforms: linux/amd64,linux/arm64
-          push: ${{ github.event_name != 'pull_request' }}
+          push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha

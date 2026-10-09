@@ -102,14 +102,13 @@ docker run -d --env-file .env -e MCP_SERVER_PORT=3000 -p 127.0.0.1:3000:3000 rad
 
 ### Prebuilt image and Portainer
 
-A GitHub Action ([docker.yml](.github/workflows/docker.yml)) runs the tests, then builds a multi-architecture image (`linux/amd64`, `linux/arm64`) and publishes it to GitHub Container Registry on every merge into `development` and on `v*` tags. Pull requests only build the image to check it.
+A GitHub Action ([docker.yml](.github/workflows/docker.yml)) runs the tests, then builds a multi-architecture image (`linux/amd64`, `linux/arm64`) and publishes it to GitHub Container Registry on every commit to `main`. Nothing is built or published from `development` or from pull requests.
 
-| Tag | When |
+| Tag | Content |
 |---|---|
-| `latest` | latest build of `development` |
-| `development` | same build, by branch name |
-| `sha-<commit>` | every published build, to pin an exact commit |
-| `1.2.3`, `1.2` | when a `v1.2.3` git tag is pushed |
+| `latest` | latest build of `main` |
+| `0.1.0` | the `version` of `pyproject.toml` at that build (moves until the version is bumped) |
+| `sha-<commit>` | one exact build, immutable: use it to pin a version |
 
 To run it from Portainer (Stacks > Add stack > Web editor), paste [docker-compose.portainer.yml](docker-compose.portainer.yml) and fill in the variables of [.env.example](.env.example) in the "Environment variables" section (`MCP_API_KEY` is required). Optional variables: `IMAGE_TAG` (default `latest`, use a `sha-…` tag to pin a build), `MCP_SERVER_PORT` (published port) and `MCP_BIND` (published interface, default `127.0.0.1`).
 
@@ -261,9 +260,11 @@ python -m venv .venv
 .venv/bin/pytest
 ```
 
-Continuous integration (GitHub Actions) runs on every pull request to `development`:
+Work happens on branches merged into `development` through pull requests. A release is a merge of `development` into `main`, tagged with the version of `pyproject.toml` (for example `0.1.0`) and published as a GitHub release; the commit to `main` builds and publishes the Docker image.
 
-- the tests and the Docker image build ([docker.yml](.github/workflows/docker.yml))
+GitHub Actions runs on every pull request to `development`:
+
+- the tests ([ci.yml](.github/workflows/ci.yml))
 - a [CodeQL](.github/workflows/codeql.yml) analysis of the Python code and of the workflows
 - a [`pip-audit`](.github/workflows/dependency-audit.yml) scan of the dependencies
 
