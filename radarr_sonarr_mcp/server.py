@@ -43,7 +43,7 @@ class RadarrSonarrMCPServer:
     # Watched status
     # ------------------------------------------------------------------
 
-    def _watched(self, check_name: str, title: str, fallback) -> bool:
+    def _watched(self, check_name: str, title: str, fallback, **kwargs) -> bool:
         """True if any configured media service reports the title as watched.
 
         Without Plex/Jellyfin/Emby, falls back to the Radarr/Sonarr heuristic.
@@ -53,7 +53,7 @@ class RadarrSonarrMCPServer:
             if client is None:
                 continue
             try:
-                statuses.append(getattr(client, check_name)(title))
+                statuses.append(getattr(client, check_name)(title, **kwargs))
             except Exception as e:
                 logger.error(f"{name} check failed for {title}: {e}")
         return any(statuses) if statuses else bool(fallback())
@@ -65,14 +65,14 @@ class RadarrSonarrMCPServer:
         exact = [s for s in library if s.title.strip().lower() == wanted]
         return exact or [s for s in library if wanted in s.title.lower()]
 
-    def _episode_watched_map(self, title: str):
+    def _episode_watched_map(self, title: str, tvdb_id: Optional[int] = None):
         """((season, episode) -> watched, has_status). An episode is watched if any service says so."""
         merged, has_status = {}, False
         for name, client in (("Jellyfin", self.jellyfin), ("Emby", self.emby)):
             if client is None:
                 continue
             try:
-                per_service = client.get_watched_episodes(title)
+                per_service = client.get_watched_episodes(title, tvdb_id)
             except Exception as e:
                 logger.error(f"{name} episode check failed for {title}: {e}")
                 continue
@@ -83,7 +83,8 @@ class RadarrSonarrMCPServer:
 
     def is_watched_series(self, series) -> bool:
         return self._watched(
-            "is_series_watched", series.title, lambda: self.sonarr_service.is_series_watched(series)
+            "is_series_watched", series.title, lambda: self.sonarr_service.is_series_watched(series),
+            tvdb_id=series.tvdb_id,
         )
 
     def is_watched_movie(self, movie) -> bool:
@@ -170,7 +171,7 @@ class RadarrSonarrMCPServer:
                 })
             found = matches[0]
 
-            watched_map, has_status = self._episode_watched_map(found.title)
+            watched_map, has_status = self._episode_watched_map(found.title, found.tvdb_id)
             episodes = self.sonarr_service.get_episodes(found.id)
             if season is not None:
                 episodes = [e for e in episodes if e.season_number == season]

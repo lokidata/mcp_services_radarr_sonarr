@@ -3,7 +3,7 @@
 import argparse
 import logging
 
-from .config import Config, NasConfig, RadarrConfig, SonarrConfig, ServerConfig, load_config, save_config
+from .config import Config, EmbyConfig, JellyfinConfig, PlexConfig, NasConfig, RadarrConfig, SonarrConfig, ServerConfig, load_config, save_config
 from .server import create_server
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -79,6 +79,10 @@ def configure():
             base_path=sonarr_base_path,
             port=sonarr_port
         ),
+        # Media servers are not part of the wizard: keep what is already configured
+        jellyfin_config=config.jellyfin_config if config else JellyfinConfig(),
+        emby_config=config.emby_config if config else EmbyConfig(),
+        plex_config=config.plex_config if config else PlexConfig(),
         server_config=ServerConfig(
             port=server_port
         )

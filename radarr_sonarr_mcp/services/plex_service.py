@@ -37,7 +37,7 @@ class PlexService:
         except Exception:
             return []
     
-    def is_series_watched(self, series_title: str) -> bool:
+    def is_series_watched(self, series_title: str, tvdb_id=None) -> bool:
         items = self.search_series(series_title)
         if not items:
             return False
