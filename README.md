@@ -102,7 +102,7 @@ docker run -d --env-file .env -e MCP_SERVER_PORT=3000 -p 127.0.0.1:3000:3000 rad
 
 ### Prebuilt image and Portainer
 
-A GitHub Action ([docker.yml](.github/workflows/docker.yml)) runs the tests, then builds a multi-architecture image (`linux/amd64`, `linux/arm64`) and publishes it to GitHub Container Registry on every commit to `main`. Nothing is built or published from `development` or from pull requests.
+A GitHub Action ([docker.yml](.github/workflows/docker.yml)) runs the tests, then builds a multi-architecture image (`linux/amd64`, `linux/arm64`) and publishes it to GitHub Container Registry on every commit to `main`. Nothing is published from `development` or from pull requests; pull requests only build the image and start it to check that it works.
 
 | Tag | Content |
 |---|---|
@@ -279,7 +279,7 @@ Do not delete the "untagged" versions of the package on GitHub: they are the per
 
 GitHub Actions runs on every pull request to `development`:
 
-- the tests ([ci.yml](.github/workflows/ci.yml))
+- the tests, and a build of the Docker image followed by a start-up check of the API key, without publishing anything ([ci.yml](.github/workflows/ci.yml))
 - a [CodeQL](.github/workflows/codeql.yml) analysis of the Python code and of the workflows
 - a [`pip-audit`](.github/workflows/dependency-audit.yml) scan of the dependencies
 

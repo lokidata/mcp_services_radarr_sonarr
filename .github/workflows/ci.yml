@@ -20,3 +20,42 @@ jobs:
           cache: pip
       - run: pip install -e ".[dev]"
       - run: pytest
+
+  # Checks that the image builds and starts. Nothing is pushed: publishing only happens on main (docker.yml)
+  docker-build:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: docker/setup-buildx-action@v4
+
+      - name: Build the image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          load: true
+          push: false
+          tags: radarr-sonarr-mcp:ci
+          cache-from: type=gha,scope=ci
+          cache-to: type=gha,scope=ci,mode=max
+
+      - name: Start the container and check the API key
+        run: |
+          docker run -d --name mcp -p 3000:3000 \
+            -e NAS_IP=127.0.0.1 -e RADARR_API_KEY=x -e SONARR_API_KEY=x \
+            -e MCP_API_KEY=ci-test-key-0123456789abcdef radarr-sonarr-mcp:ci
+          url=http://127.0.0.1:3000/mcp
+          body='{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"ci","version":"0"}}}'
+          for i in $(seq 1 30); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$url" || true)
+            [ "$code" = 401 ] && break
+            sleep 1
+          done
+          test "$code" = 401 || { echo "expected 401 without key, got $code"; exit 1; }
+          code=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$url" \
+            -H 'X-API-Key: ci-test-key-0123456789abcdef' \
+            -H 'Content-Type: application/json' -H 'Accept: application/json, text/event-stream' -d "$body")
+          test "$code" = 200 || { echo "expected 200 with key, got $code"; exit 1; }
+
+      - name: Container logs
+        if: failure()
+        run: docker logs mcp
