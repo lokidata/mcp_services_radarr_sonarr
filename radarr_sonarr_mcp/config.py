@@ -4,6 +4,7 @@ import json
 import os
 from dataclasses import dataclass, field
 from typing import Any, Dict, Optional
+from urllib.parse import urlparse
 
 CONFIG_ENV_VAR = "RADARR_SONARR_MCP_CONFIG"
 DEFAULT_CONFIG_PATH = "config.json"
@@ -11,6 +12,23 @@ DEFAULT_CONFIG_PATH = "config.json"
 
 class ConfigError(Exception):
     """Raised when the configuration cannot be loaded."""
+
+
+def normalize_url(url: str, default_port: int) -> str:
+    """Add a missing scheme (http) and port to a media server URL.
+
+    "192.168.1.10" -> "http://192.168.1.10:8096"; URLs that already carry a
+    scheme and/or port are left as they are.
+    """
+    url = (url or "").strip().rstrip("/")
+    if not url:
+        return ""
+    if "://" not in url:
+        url = f"http://{url}"
+    parsed = urlparse(url)
+    if parsed.port is None:
+        url = f"{parsed.scheme}://{parsed.netloc}:{default_port}{parsed.path}"
+    return url
 
 
 @dataclass
@@ -49,6 +67,9 @@ class JellyfinConfig:
     api_key: str = ""
     user_id: str = ""
 
+    def __post_init__(self):
+        self.base_url = normalize_url(self.base_url, 8096)
+
     @property
     def enabled(self) -> bool:
         return bool(self.base_url)
@@ -60,6 +81,9 @@ class EmbyConfig:
     api_key: str = ""
     user_id: str = ""
 
+    def __post_init__(self):
+        self.base_url = normalize_url(self.base_url, 8096)
+
     @property
     def enabled(self) -> bool:
         return bool(self.base_url)
@@ -69,6 +93,9 @@ class EmbyConfig:
 class PlexConfig:
     base_url: str = ""
     token: str = ""
+
+    def __post_init__(self):
+        self.base_url = normalize_url(self.base_url, 32400)
 
     @property
     def enabled(self) -> bool:
