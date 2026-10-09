@@ -1,5 +1,5 @@
 import requests
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Tuple
 
 from ..config import JellyfinConfig
 
@@ -53,6 +53,16 @@ class JellyfinService:
         response = requests.get(url, params=params, timeout=30)
         response.raise_for_status()
         return response.json().get("Items", [])
+
+    def get_watched_episodes(self, series_title: str) -> Dict[Tuple[int, int], bool]:
+        """Map (season, episode) -> played for every episode of the series. Empty if not found."""
+        items = self.search_series(series_title)
+        if not items:
+            return {}
+        return {
+            (ep.get("ParentIndexNumber"), ep.get("IndexNumber")): _is_played(ep)
+            for ep in self.get_episodes_for_series(items[0].get("Id"))
+        }
 
     def is_episode_watched(self, series_title: str, season: int, episode: int) -> bool:
         """Determine if a given episode (season/episode number) of a series is watched."""

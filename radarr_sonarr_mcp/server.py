@@ -58,6 +58,29 @@ class RadarrSonarrMCPServer:
                 logger.error(f"{name} check failed for {title}: {e}")
         return any(statuses) if statuses else bool(fallback())
 
+    def _find_series(self, title: str) -> list:
+        """Sonarr series matching a title: exact (case-insensitive) match, else substring."""
+        wanted = title.strip().lower()
+        library = self.sonarr_service.get_all_series()
+        exact = [s for s in library if s.title.strip().lower() == wanted]
+        return exact or [s for s in library if wanted in s.title.lower()]
+
+    def _episode_watched_map(self, title: str):
+        """((season, episode) -> watched, has_status). An episode is watched if any service says so."""
+        merged, has_status = {}, False
+        for name, client in (("Jellyfin", self.jellyfin), ("Emby", self.emby)):
+            if client is None:
+                continue
+            try:
+                per_service = client.get_watched_episodes(title)
+            except Exception as e:
+                logger.error(f"{name} episode check failed for {title}: {e}")
+                continue
+            has_status = has_status or bool(per_service)
+            for key, played in per_service.items():
+                merged[key] = merged.get(key, False) or played
+        return merged, has_status
+
     def is_watched_series(self, series) -> bool:
         return self._watched(
             "is_series_watched", series.title, lambda: self.sonarr_service.is_series_watched(series)
@@ -126,6 +149,52 @@ class RadarrSonarrMCPServer:
                     {"id": s.id, "title": s.title, "year": s.year, "overview": s.overview}
                     for s in results
                 ],
+            })
+
+        @self.server.tool()
+        def get_episodes(series: str,
+                         season: Optional[int] = None,
+                         watched: Optional[bool] = None,
+                         downloaded: Optional[bool] = None) -> str:
+            """
+            List the episodes of a TV series with download and watched status.
+            `series` is matched against the Sonarr library by title (exact match preferred).
+            Watched status comes from Jellyfin/Emby (any reporting watched wins);
+            it is null when none is configured or the series is not found there.
+            """
+            matches = self._find_series(series)
+            if len(matches) != 1:
+                return json.dumps({
+                    "error": "series not found" if not matches else "ambiguous series title",
+                    "candidates": [{"id": s.id, "title": s.title, "year": s.year} for s in matches[:10]],
+                })
+            found = matches[0]
+
+            watched_map, has_status = self._episode_watched_map(found.title)
+            episodes = self.sonarr_service.get_episodes(found.id)
+            if season is not None:
+                episodes = [e for e in episodes if e.season_number == season]
+            if downloaded is not None:
+                episodes = [e for e in episodes if e.has_file == downloaded]
+
+            rows = []
+            for e in sorted(episodes, key=lambda e: (e.season_number, e.episode_number)):
+                is_watched = watched_map.get((e.season_number, e.episode_number), False) if has_status else None
+                if watched is not None and is_watched != watched:
+                    continue
+                rows.append({
+                    "season": e.season_number,
+                    "episode": e.episode_number,
+                    "title": e.title,
+                    "airDate": e.air_date,
+                    "downloaded": e.has_file,
+                    "monitored": e.monitored,
+                    "watched": is_watched,
+                })
+            return json.dumps({
+                "series": {"id": found.id, "title": found.title, "year": found.year},
+                "count": len(rows),
+                "episodes": rows,
             })
 
         @self.server.tool()
