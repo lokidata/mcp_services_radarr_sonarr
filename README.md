@@ -260,7 +260,22 @@ python -m venv .venv
 .venv/bin/pytest
 ```
 
-Work happens on branches merged into `development` through pull requests. A release is a merge of `development` into `main`, tagged with the version of `pyproject.toml` (for example `0.1.0`) and published as a GitHub release; the commit to `main` builds and publishes the Docker image.
+Work happens on branches merged into `development` through pull requests. `main` only receives releases and is protected: changes go through a pull request whose `test` check must pass, with no direct push or force push, even for administrators.
+
+### Releasing
+
+1. In a pull request to `development`, bump `version` in `pyproject.toml` and merge it.
+2. Open a pull request from `development` to `main` (for example titled "Release 0.2.0") and merge it with **Create a merge commit**, not squash: a squash would make `main` and `development` diverge and the next release pull request would conflict.
+3. The commit on `main` builds and publishes the Docker image, tagged `latest`, the version and `sha-<commit>` (see [Prebuilt image and Portainer](#prebuilt-image-and-portainer)). Wait for the "Docker image" workflow to succeed.
+4. Tag and publish the release on that commit:
+
+   ```bash
+   gh release create 0.2.0 --target main --title 0.2.0 --generate-notes
+   ```
+
+5. Update the deployment: "Pull and redeploy" in Portainer, or set `IMAGE_TAG` to the `sha-…` tag to pin an exact build.
+
+Do not delete the "untagged" versions of the package on GitHub: they are the per-platform images and attestations of the multi-architecture tags, and removing them leaves tags that cannot be pulled.
 
 GitHub Actions runs on every pull request to `development`:
 
