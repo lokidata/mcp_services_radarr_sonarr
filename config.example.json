@@ -1,0 +1,7 @@
+{
+  "nasConfig": { "ip": "192.168.1.10", "port": "7878" },
+  "radarrConfig": { "apiKey": "your_radarr_api_key", "basePath": "/api/v3", "port": "7878" },
+  "sonarrConfig": { "apiKey": "your_sonarr_api_key", "basePath": "/api/v3", "port": "8989" },
+  "embyConfig": { "baseUrl": "http://192.168.1.10:8096", "apiKey": "your_emby_api_key", "userId": "your_emby_user_id" },
+  "server": { "host": "127.0.0.1", "port": 3000, "apiKey": "output of: openssl rand -hex 32" }
+}

@@ -7,7 +7,10 @@ from typing import Optional
 
 from fastmcp import FastMCP
 
-from .config import Config, load_config
+from starlette.middleware import Middleware
+
+from .auth import MIN_API_KEY_LENGTH, ApiKeyMiddleware
+from .config import Config, ConfigError, load_config
 from .services.emby_service import EmbyService
 from .services.jellyfin_service import JellyfinService
 from .services.plex_service import PlexService
@@ -272,10 +275,28 @@ class RadarrSonarrMCPServer:
     def start(self, transport: str = "stdio", host: Optional[str] = None):
         """Run the server. 'stdio' for Claude Desktop, 'http' to listen on server.host:server.port."""
         if transport == "http":
-            host = host or self.config.server_config.host
-            port = self.config.server_config.port
+            server_config = self.config.server_config
+            host = host or server_config.host
+            port = server_config.port
+            options = {}
+            if server_config.api_key:
+                if len(server_config.api_key) < MIN_API_KEY_LENGTH:
+                    raise ConfigError(
+                        f"MCP_API_KEY must be at least {MIN_API_KEY_LENGTH} characters "
+                        "(generate one with: openssl rand -hex 32)"
+                    )
+                options["middleware"] = [Middleware(ApiKeyMiddleware, api_key=server_config.api_key)]
+            elif server_config.allow_no_auth:
+                logger.warning("HTTP transport started WITHOUT authentication (MCP_ALLOW_NO_AUTH)")
+            else:
+                raise ConfigError(
+                    "The HTTP transport requires an API key: set MCP_API_KEY "
+                    "(generate one with: openssl rand -hex 32), or MCP_ALLOW_NO_AUTH=true to disable the check"
+                )
+            if server_config.allowed_hosts:
+                options["allowed_hosts"] = server_config.allowed_hosts
             logger.info(f"Starting Radarr-Sonarr MCP Server over HTTP on {host}:{port}")
-            self.server.run(transport="http", host=host, port=port)
+            self.server.run(transport="http", host=host, port=port, **options)
         else:
             self.server.run()
 

@@ -3,7 +3,7 @@
 import json
 import os
 from dataclasses import dataclass, field
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 from urllib.parse import urlparse
 
 CONFIG_ENV_VAR = "RADARR_SONARR_MCP_CONFIG"
@@ -106,6 +106,9 @@ class PlexConfig:
 class ServerConfig:
     port: int = 3000
     host: str = "127.0.0.1"  # use 0.0.0.0 to listen on all interfaces (e.g. in Docker)
+    api_key: str = ""  # required by the HTTP transport (clients send it as a Bearer token or X-API-Key)
+    allow_no_auth: bool = False  # explicitly allow the HTTP transport without an API key
+    allowed_hosts: List[str] = field(default_factory=list)  # extra Host header values (reverse proxy domain)
 
 
 @dataclass
@@ -142,6 +145,12 @@ class Config:
             },
             "server": {"port": self.server_config.port, "host": self.server_config.host},
         }
+        if self.server_config.api_key:
+            data["server"]["apiKey"] = self.server_config.api_key
+        if self.server_config.allow_no_auth:
+            data["server"]["allowNoAuth"] = True
+        if self.server_config.allowed_hosts:
+            data["server"]["allowedHosts"] = self.server_config.allowed_hosts
         if self.jellyfin_config.enabled:
             data["jellyfinConfig"] = {
                 "baseUrl": self.jellyfin_config.base_url,
@@ -199,6 +208,9 @@ class Config:
             server_config=ServerConfig(
                 port=int(data.get("server", {}).get("port", 3000)),
                 host=data.get("server", {}).get("host", "127.0.0.1"),
+                api_key=data.get("server", {}).get("apiKey", ""),
+                allow_no_auth=bool(data.get("server", {}).get("allowNoAuth", False)),
+                allowed_hosts=list(data.get("server", {}).get("allowedHosts", [])),
             ),
         )
 
@@ -234,6 +246,9 @@ class Config:
             server_config=ServerConfig(
                 port=int(env("MCP_SERVER_PORT", "3000")),
                 host=env("MCP_SERVER_HOST", "127.0.0.1"),
+                api_key=env("MCP_API_KEY", ""),
+                allow_no_auth=env("MCP_ALLOW_NO_AUTH", "").lower() in ("1", "true", "yes"),
+                allowed_hosts=[h.strip() for h in env("MCP_ALLOWED_HOSTS", "").split(",") if h.strip()],
             ),
         )
 
