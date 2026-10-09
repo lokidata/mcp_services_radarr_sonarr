@@ -1,0 +1,24 @@
+name: Dependency audit
+
+on:
+  push:
+    branches: [development]
+  pull_request:
+    branches: [development]
+  schedule:
+    - cron: "41 4 * * 1" # every Monday
+
+permissions:
+  contents: read
+
+jobs:
+  pip-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install pip-audit==2.7.3
+      # Resolves the dependencies declared in pyproject.toml and fails on known vulnerabilities
+      - run: pip-audit .

@@ -208,4 +208,6 @@ Radarr and Sonarr: Settings > General > API Key. Emby: Dashboard > Advanced > AP
 
 ## Security
 
+Automated checks (all free on public repositories): CodeQL analysis of the Python code and of the workflows, a `pip-audit` scan of the dependencies, Dependabot alerts and update pull requests (Python, GitHub Actions, Docker base image), and secret scanning with push protection. They run on every pull request and every Monday; the results are in the repository's *Security* tab.
+
 API keys are sent to your services over plain HTTP by default. Run the server only on a trusted local network and keep `config.json` out of version control (it is git-ignored).
