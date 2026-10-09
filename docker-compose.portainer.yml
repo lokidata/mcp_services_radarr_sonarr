@@ -1,0 +1,29 @@
+# Stack for Portainer (or any host): runs the prebuilt image published by the
+# "Docker image" GitHub Action instead of building from source.
+#
+# Set the variables below in the stack's "Environment variables" section.
+services:
+  radarr-sonarr-mcp:
+    image: ghcr.io/lokidata/mcp_services_radarr_sonarr:${IMAGE_TAG:-latest}
+    container_name: radarr-sonarr-mcp
+    restart: unless-stopped
+    ports:
+      # The server has no authentication: 127.0.0.1 keeps it local to the host.
+      # Set MCP_BIND=0.0.0.0 (or your LAN address) only on a trusted network.
+      - "${MCP_BIND:-127.0.0.1}:${MCP_SERVER_PORT:-3000}:3000"
+    environment:
+      MCP_SERVER_HOST: 0.0.0.0
+      MCP_SERVER_PORT: "3000"
+      NAS_IP: ${NAS_IP}
+      RADARR_PORT: ${RADARR_PORT:-7878}
+      SONARR_PORT: ${SONARR_PORT:-8989}
+      RADARR_API_KEY: ${RADARR_API_KEY}
+      SONARR_API_KEY: ${SONARR_API_KEY}
+      EMBY_BASE_URL: ${EMBY_BASE_URL:-}
+      EMBY_API_KEY: ${EMBY_API_KEY:-}
+      EMBY_USER_ID: ${EMBY_USER_ID:-}
+      JELLYFIN_BASE_URL: ${JELLYFIN_BASE_URL:-}
+      JELLYFIN_API_KEY: ${JELLYFIN_API_KEY:-}
+      JELLYFIN_USER_ID: ${JELLYFIN_USER_ID:-}
+      PLEX_BASE_URL: ${PLEX_BASE_URL:-}
+      PLEX_TOKEN: ${PLEX_TOKEN:-}
