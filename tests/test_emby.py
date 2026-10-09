@@ -49,3 +49,16 @@ def test_normalize_url():
 def test_emby_url_normalized_from_config():
     cfg = Config.from_dict({"embyConfig": {"baseUrl": "192.168.1.253", "apiKey": "k", "userId": "u"}})
     assert cfg.emby_config.base_url == "http://192.168.1.253:8096"
+
+
+def test_episode_watched_uses_played_flag():
+    service = EmbyService(_config().emby_config)
+    episodes = [
+        {"ParentIndexNumber": 1, "IndexNumber": 1, "UserData": {"Played": True, "PlayCount": 0}},
+        {"ParentIndexNumber": 6, "IndexNumber": 2, "UserData": {"Played": False, "PlayCount": 0}},
+    ]
+    with patch.object(EmbyService, "search_series", return_value=[{"Id": "1"}]), \
+            patch.object(EmbyService, "get_episodes_for_series", return_value=episodes):
+        assert service.is_episode_watched("Slow Horses", 1, 1)
+        assert not service.is_episode_watched("Slow Horses", 6, 2)
+        assert not service.is_episode_watched("Slow Horses", 9, 9)
