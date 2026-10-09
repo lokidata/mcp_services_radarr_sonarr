@@ -14,6 +14,10 @@ services:
     environment:
       MCP_SERVER_HOST: 0.0.0.0
       MCP_SERVER_PORT: "3000"
+      # Required: clients must send it as "Authorization: Bearer <key>" or "X-API-Key: <key>"
+      MCP_API_KEY: ${MCP_API_KEY:?set MCP_API_KEY (openssl rand -hex 32)}
+      # Domain(s) used behind a reverse proxy, comma separated (only if requests are rejected)
+      MCP_ALLOWED_HOSTS: ${MCP_ALLOWED_HOSTS:-}
       NAS_IP: ${NAS_IP}
       RADARR_PORT: ${RADARR_PORT:-7878}
       SONARR_PORT: ${SONARR_PORT:-8989}

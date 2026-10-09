@@ -1,9 +1,10 @@
 """Command-line interface for the Radarr/Sonarr MCP server."""
 
 import argparse
+import sys
 import logging
 
-from .config import Config, EmbyConfig, JellyfinConfig, PlexConfig, NasConfig, RadarrConfig, SonarrConfig, ServerConfig, load_config, save_config
+from .config import ConfigError, Config, EmbyConfig, JellyfinConfig, PlexConfig, NasConfig, RadarrConfig, SonarrConfig, ServerConfig, load_config, save_config
 from .server import create_server
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -98,8 +99,12 @@ def configure():
 
 def start(config_path=None, transport="stdio", host=None):
     """Start the MCP server."""
-    server = create_server(config_path)
-    server.start(transport=transport, host=host)
+    try:
+        server = create_server(config_path)
+        server.start(transport=transport, host=host)
+    except ConfigError as e:
+        logging.error(e)
+        sys.exit(1)
 
 
 def show_status():
@@ -112,6 +117,7 @@ def show_status():
         logging.info(f"Sonarr Port: {config.sonarr_config.port or config.nas_config.port}")
         logging.info(f"MCP Server Port: {config.server_config.port}")
         logging.info(f"MCP Endpoint URL: http://localhost:{config.server_config.port}")
+        logging.info(f"HTTP API key: {'set' if config.server_config.api_key else 'NOT set (required for --transport http)'}")
         logging.info(f"Server is configured. Use 'radarr-sonarr-mcp start' to run the server.")
     except Exception as e:
         logging.error(f"Server is not configured: {e}")
