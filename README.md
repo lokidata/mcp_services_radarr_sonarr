@@ -9,6 +9,7 @@ This is a fork of [BerryKuipers/mcp_services_radarr_sonarr](https://github.com/B
 - **Radarr and Sonarr**: browse and search your movie and TV libraries
 - **Watched status** from Emby and Jellyfin (a title counts as watched if any configured server says so)
 - **Per-episode view** (`get_episodes`): download and watched status of every episode of a series
+- **Adding content** (`add_movie`, `add_series`): add a movie to Radarr or a series to Sonarr, with quality profile, root folder and monitoring options. No search is started unless asked, and a read-only mode removes the write tools
 - **Reliable matching**: Sonarr series are linked to Emby/Jellyfin by TVDB id and Radarr movies by TMDB id, so translated or renamed titles still match (the title is only the fallback)
 - **Two transports**: stdio (the client starts the server) or HTTP, protected by an API key
 - **Docker image** published to GitHub Container Registry, with a ready-to-use Portainer stack
@@ -58,12 +59,15 @@ If none is usable, the server stops with an explicit error instead of silently u
 | `MCP_API_KEY` | | **Required by the HTTP transport**, see [Securing access](#securing-access) |
 | `MCP_ALLOWED_HOSTS` | | Comma separated domain names accepted in the `Host` header behind a reverse proxy (only if requests are rejected) |
 | `MCP_ALLOW_NO_AUTH` | `false` | `true` lets the HTTP transport start without an API key (not recommended) |
+| `MCP_READ_ONLY` | `false` | `true` does not register `add_movie` and `add_series`, so nothing can be added |
+| `RADARR_DEFAULT_QUALITY_PROFILE` / `SONARR_DEFAULT_QUALITY_PROFILE` | | Quality profile name used by the add tools when none is given |
+| `RADARR_DEFAULT_ROOT_FOLDER` / `SONARR_DEFAULT_ROOT_FOLDER` | | Root folder path used by the add tools when none is given |
 
 Media server URLs may omit the scheme and port: `192.168.1.10` becomes `http://192.168.1.10:8096` for Emby and Jellyfin (`:32400` for Plex).
 
 ### Configuration file
 
-[config.example.json](config.example.json) shows the layout of `config.json` (git-ignored). Only `radarrConfig` and `sonarrConfig` are needed; `embyConfig`, `jellyfinConfig` (same keys as Emby), `plexConfig` (`baseUrl`, `token`) are optional. The `server` section accepts `host`, `port`, `apiKey`, `allowedHosts` (a list) and `allowNoAuth`.
+[config.example.json](config.example.json) shows the layout of `config.json` (git-ignored). Only `radarrConfig` and `sonarrConfig` are needed; `embyConfig`, `jellyfinConfig` (same keys as Emby), `plexConfig` (`baseUrl`, `token`) are optional. `radarrConfig` and `sonarrConfig` also accept `defaultQualityProfile` and `defaultRootFolder`. The `server` section accepts `host`, `port`, `apiKey`, `allowedHosts` (a list), `allowNoAuth` and `readOnly`.
 
 `radarr-sonarr-mcp configure` is an interactive wizard for the Radarr, Sonarr and server port settings. It keeps any media server section already present in the file; add those by hand.
 
@@ -222,10 +226,25 @@ Claude Desktop starts the server itself over stdio, so no `MCP_API_KEY` is neede
 | `get_available_series` | Series from Sonarr. Filters: `year`, `downloaded`, `watched` |
 | `lookup_series` | Search series by title (Sonarr lookup) |
 | `get_episodes` | Episodes of a series with download and watched status. Arguments: `series`, `season`, `watched`, `downloaded` |
+| `get_add_options` | Root folders and quality profiles of Radarr and Sonarr, and the configured defaults |
+| `add_movie` | Add a movie to Radarr. Arguments: `tmdb_id`, `quality_profile`, `root_folder`, `monitored`, `search_now` |
+| `add_series` | Add a series to Sonarr. Arguments: `tvdb_id`, `quality_profile`, `root_folder`, `monitor`, `series_type`, `search_now` |
 
 `get_episodes` finds the series in Sonarr by title (exact match preferred) and returns an error with candidates if the title is unknown or ambiguous. Each episode has `season`, `episode`, `title`, `airDate`, `downloaded`, `monitored` and `watched`. `watched` is `null` when no Emby/Jellyfin server is configured or the series is not in its library.
 
 Both listing tools also accept an `actors` argument, but Radarr and Sonarr do not return cast information, so it never matches anything at the moment.
+
+### Adding content
+
+`lookup_movie` and `lookup_series` return the `tmdbId` / `tvdbId` of each result and whether it is already `inLibrary`. Use that id with `add_movie` or `add_series`:
+
+- `quality_profile` is a name (case insensitive) or an id, and `root_folder` is a path. Both fall back to the configured defaults. Without a default and with several choices, the tool does not guess: it returns an error listing the valid options (`get_add_options` shows them all).
+- `search_now` is `false` by default: the item is added and monitored, but no search for releases is started, so nothing is downloaded until you ask for it.
+- `add_movie` monitors the movie (`monitored`, true by default) and sets the minimum availability to `released`.
+- `add_series` takes `monitor`, which defaults to `all`: `all`, `future`, `missing`, `existing`, `firstSeason`, `lastSeason`, `latestSeason`, `pilot`, `recent`, `monitorSpecials`, `unmonitorSpecials` or `none`. `series_type` is `standard`, `daily` or `anime` (by default the one Sonarr detects). Season folders are always used.
+- An item that is already in the library is refused, with the existing entry. Radarr and Sonarr validation errors are returned as they are.
+
+Anyone holding the API key of the HTTP transport can add content. Set `MCP_READ_ONLY=true` to remove `add_movie` and `add_series` when you only want to browse.
 
 Resources: `radarr-sonarr://movies` and `radarr-sonarr://series`.
 
@@ -234,6 +253,8 @@ Example questions for Claude:
 - "Which episodes of Slow Horses have I downloaded but not watched?"
 - "Do I have any unwatched movies from 2023?"
 - "What is missing from season 6 of Slow Horses?"
+- "Add the movie Dune (2021) in 1080p."
+- "Add the series Slow Horses, all seasons monitored, and start searching."
 
 ## Watched status
 

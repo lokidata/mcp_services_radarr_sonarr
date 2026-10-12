@@ -9,8 +9,10 @@ from fastmcp import FastMCP
 
 from starlette.middleware import Middleware
 
+from .adding import AddError, movie_payload, resolve_profile, resolve_root_folder, series_payload
 from .auth import MIN_API_KEY_LENGTH, ApiKeyMiddleware
 from .config import Config, ConfigError, load_config
+from .services.arr_http import ArrError
 from .services.emby_service import EmbyService
 from .services.jellyfin_service import JellyfinService
 from .services.plex_service import PlexService
@@ -40,6 +42,8 @@ class RadarrSonarrMCPServer:
         self.emby = EmbyService(config.emby_config) if config.emby_config.enabled else None
         self.plex = PlexService(config.plex_config) if config.plex_config.enabled else None
         self._register_tools()
+        if not config.server_config.read_only:
+            self._register_write_tools()
         self._register_resources()
 
     # ------------------------------------------------------------------
@@ -151,7 +155,13 @@ class RadarrSonarrMCPServer:
             return json.dumps({
                 "count": len(results),
                 "series": [
-                    {"id": s.id, "title": s.title, "year": s.year, "overview": s.overview}
+                    {
+                        "tvdbId": s.tvdb_id,
+                        "title": s.title,
+                        "year": s.year,
+                        "overview": s.overview,
+                        "inLibrary": bool(s.id),
+                    }
                     for s in results
                 ],
             })
@@ -248,10 +258,121 @@ class RadarrSonarrMCPServer:
             return json.dumps({
                 "count": len(results),
                 "movies": [
-                    {"id": m.id, "title": m.title, "year": m.year, "overview": m.overview}
+                    {
+                        "tmdbId": m.tmdb_id,
+                        "title": m.title,
+                        "year": m.year,
+                        "overview": m.overview,
+                        "inLibrary": bool(m.id),
+                    }
                     for m in results
                 ],
             })
+
+        @self.server.tool()
+        def get_add_options() -> str:
+            """
+            List what add_movie and add_series can use: the root folders and quality profiles
+            of Radarr and Sonarr, and the configured defaults.
+            """
+            options = {}
+            for name, service, cfg in (("radarr", self.radarr_service, self.config.radarr_config),
+                                       ("sonarr", self.sonarr_service, self.config.sonarr_config)):
+                try:
+                    options[name] = {
+                        "rootFolders": [{"path": f["path"], "freeSpace": f.get("freeSpace")}
+                                        for f in service.get_root_folders()],
+                        "qualityProfiles": [{"id": p["id"], "name": p["name"]}
+                                            for p in service.get_quality_profiles()],
+                        "defaults": {"qualityProfile": cfg.default_quality_profile or None,
+                                     "rootFolder": cfg.default_root_folder or None},
+                    }
+                except ArrError as e:
+                    options[name] = {"error": str(e)}
+            return json.dumps(options)
+
+    def _register_write_tools(self):
+        @self.server.tool()
+        def add_movie(tmdb_id: int,
+                      quality_profile: Optional[str] = None,
+                      root_folder: Optional[str] = None,
+                      monitored: bool = True,
+                      search_now: bool = False) -> str:
+            """
+            Add a movie to Radarr. `tmdb_id` comes from lookup_movie.
+            quality_profile (name or id) and root_folder (path) default to the configured values;
+            see get_add_options. No release search is started unless search_now is true.
+            """
+            try:
+                resource = self.radarr_service.lookup_movie_by_tmdb(tmdb_id)
+                if resource is None:
+                    return json.dumps({"error": "movie not found"})
+                existing = next((m for m in self.radarr_service.get_all_movies() if m.tmdb_id == tmdb_id), None)
+                if existing:
+                    return json.dumps({"error": "already in library",
+                                       "existing": {"id": existing.id, "title": existing.title}})
+                cfg = self.config.radarr_config
+                profile = resolve_profile(self.radarr_service.get_quality_profiles(), quality_profile,
+                                          cfg.default_quality_profile)
+                folder = resolve_root_folder(self.radarr_service.get_root_folders(), root_folder,
+                                             cfg.default_root_folder)
+                added = self.radarr_service.add_movie(
+                    movie_payload(resource, profile, folder, monitored, search_now))
+            except (AddError, ArrError) as e:
+                return self._add_error(e)
+            return json.dumps({
+                "added": {"id": added.get("id"), "title": added.get("title"), "year": added.get("year")},
+                "qualityProfile": profile["name"],
+                "rootFolder": folder["path"],
+                "searching": search_now,
+            })
+
+        @self.server.tool()
+        def add_series(tvdb_id: int,
+                       quality_profile: Optional[str] = None,
+                       root_folder: Optional[str] = None,
+                       monitor: str = "all",
+                       series_type: Optional[str] = None,
+                       search_now: bool = False) -> str:
+            """
+            Add a TV series to Sonarr. `tvdb_id` comes from lookup_series.
+            quality_profile (name or id) and root_folder (path) default to the configured values;
+            see get_add_options. `monitor` is all, future, missing, existing, firstSeason, lastSeason,
+            latestSeason, pilot, recent, monitorSpecials, unmonitorSpecials or none.
+            series_type is standard, daily or anime (default: the one Sonarr detects).
+            No search for missing episodes is started unless search_now is true.
+            """
+            try:
+                resource = self.sonarr_service.lookup_series_by_tvdb(tvdb_id)
+                if resource is None:
+                    return json.dumps({"error": "series not found"})
+                existing = next((s for s in self.sonarr_service.get_all_series() if s.tvdb_id == tvdb_id), None)
+                if existing:
+                    return json.dumps({"error": "already in library",
+                                       "existing": {"id": existing.id, "title": existing.title}})
+                cfg = self.config.sonarr_config
+                profile = resolve_profile(self.sonarr_service.get_quality_profiles(), quality_profile,
+                                          cfg.default_quality_profile)
+                folder = resolve_root_folder(self.sonarr_service.get_root_folders(), root_folder,
+                                             cfg.default_root_folder)
+                added = self.sonarr_service.add_series(
+                    series_payload(resource, profile, folder, monitor, series_type, search_now))
+            except (AddError, ArrError) as e:
+                return self._add_error(e)
+            return json.dumps({
+                "added": {"id": added.get("id"), "title": added.get("title"), "year": added.get("year")},
+                "qualityProfile": profile["name"],
+                "rootFolder": folder["path"],
+                "monitor": monitor,
+                "searching": search_now,
+            })
+
+    @staticmethod
+    def _add_error(error: Exception) -> str:
+        result = {"error": str(error)}
+        if getattr(error, "options", None):
+            result["options"] = error.options
+        return json.dumps(result)
 
     def _register_resources(self):
         @self.server.resource("radarr-sonarr://series", description="TV series collection from Sonarr")
