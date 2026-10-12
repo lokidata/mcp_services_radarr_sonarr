@@ -43,6 +43,18 @@ def resolve_root_folder(folders: List[Dict[str, Any]], wanted: Optional[str], de
                    normalize=lambda value: str(value).strip().rstrip("/").lower())
 
 
+def is_anime(resource: Dict[str, Any], series_type: Optional[str]) -> bool:
+    """Whether a series is an anime: the requested type if there is one, else what the lookup says.
+
+    Sonarr does not set the anime type on a lookup result, but it tags such series with the
+    "Anime" genre, so that is used as well.
+    """
+    if series_type is not None:
+        return series_type == "anime"
+    genres = [str(genre).lower() for genre in (resource.get("genres") or [])]
+    return resource.get("seriesType") == "anime" or "anime" in genres
+
+
 def _base_payload(resource: Dict[str, Any]) -> Dict[str, Any]:
     payload = dict(resource)
     payload.pop("id", None)  # a lookup result is not in the library yet
@@ -74,7 +86,7 @@ def series_payload(resource: Dict[str, Any], profile: Dict[str, Any], folder: Di
         "rootFolderPath": folder["path"],
         "monitored": monitor != "none",
         "seasonFolder": True,  # the lookup result carries an unset boolean; Sonarr defaults to season folders
-        "seriesType": series_type or resource.get("seriesType", "standard"),
+        "seriesType": series_type or ("anime" if is_anime(resource, None) else resource.get("seriesType", "standard")),
         "addOptions": {
             "monitor": monitor,
             "searchForMissingEpisodes": search_now,
