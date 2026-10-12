@@ -62,12 +62,13 @@ If none is usable, the server stops with an explicit error instead of silently u
 | `MCP_READ_ONLY` | `false` | `true` does not register `add_movie` and `add_series`, so nothing can be added |
 | `RADARR_DEFAULT_QUALITY_PROFILE` / `SONARR_DEFAULT_QUALITY_PROFILE` | | Quality profile name used by the add tools when none is given |
 | `RADARR_DEFAULT_ROOT_FOLDER` / `SONARR_DEFAULT_ROOT_FOLDER` | | Root folder path used by the add tools when none is given |
+| `SONARR_ANIME_DEFAULT_QUALITY_PROFILE` / `SONARR_ANIME_DEFAULT_ROOT_FOLDER` | | Same, but for anime: used instead of the general defaults when the series is an anime |
 
 Media server URLs may omit the scheme and port: `192.168.1.10` becomes `http://192.168.1.10:8096` for Emby and Jellyfin (`:32400` for Plex).
 
 ### Configuration file
 
-[config.example.json](config.example.json) shows the layout of `config.json` (git-ignored). Only `radarrConfig` and `sonarrConfig` are needed; `embyConfig`, `jellyfinConfig` (same keys as Emby), `plexConfig` (`baseUrl`, `token`) are optional. `radarrConfig` and `sonarrConfig` also accept `defaultQualityProfile` and `defaultRootFolder`. The `server` section accepts `host`, `port`, `apiKey`, `allowedHosts` (a list), `allowNoAuth` and `readOnly`.
+[config.example.json](config.example.json) shows the layout of `config.json` (git-ignored). Only `radarrConfig` and `sonarrConfig` are needed; `embyConfig`, `jellyfinConfig` (same keys as Emby), `plexConfig` (`baseUrl`, `token`) are optional. `radarrConfig` and `sonarrConfig` also accept `defaultQualityProfile` and `defaultRootFolder`, and `sonarrConfig` accepts `animeDefaultQualityProfile` and `animeDefaultRootFolder`. The `server` section accepts `host`, `port`, `apiKey`, `allowedHosts` (a list), `allowNoAuth` and `readOnly`.
 
 `radarr-sonarr-mcp configure` is an interactive wizard for the Radarr, Sonarr and server port settings. It keeps any media server section already present in the file; add those by hand.
 
@@ -239,9 +240,10 @@ Both listing tools also accept an `actors` argument, but Radarr and Sonarr do no
 `lookup_movie` and `lookup_series` return the `tmdbId` / `tvdbId` of each result and whether it is already `inLibrary`. Use that id with `add_movie` or `add_series`:
 
 - `quality_profile` is a name (case insensitive) or an id, and `root_folder` is a path. Both fall back to the configured defaults. Without a default and with several choices, the tool does not guess: it returns an error listing the valid options (`get_add_options` shows them all).
+- **Anime**: a series is treated as an anime when `series_type` is `anime`, or, if `series_type` is not given, when Sonarr tags it with the `Anime` genre (Sonarr itself does not set the anime type on a lookup result). It is then added with `seriesType: anime` and with the anime defaults, if configured, instead of the general ones. Order of precedence for the profile and the root folder: the value given in the call, the anime default (anime only), the general default, the only existing choice, else an error listing the options. An explicit `series_type` of `standard` or `daily` turns the anime handling off.
 - `search_now` is `false` by default: the item is added and monitored, but no search for releases is started, so nothing is downloaded until you ask for it.
 - `add_movie` monitors the movie (`monitored`, true by default) and sets the minimum availability to `released`.
-- `add_series` takes `monitor`, which defaults to `all`: `all`, `future`, `missing`, `existing`, `firstSeason`, `lastSeason`, `latestSeason`, `pilot`, `recent`, `monitorSpecials`, `unmonitorSpecials` or `none`. `series_type` is `standard`, `daily` or `anime` (by default the one Sonarr detects). Season folders are always used.
+- `add_series` takes `monitor`, which defaults to `all`: `all`, `future`, `missing`, `existing`, `firstSeason`, `lastSeason`, `latestSeason`, `pilot`, `recent`, `monitorSpecials`, `unmonitorSpecials` or `none`. `series_type` is `standard`, `daily` or `anime` (by default `anime` for series with the Anime genre, otherwise the type Sonarr reports). Season folders are always used.
 - An item that is already in the library is refused, with the existing entry. Radarr and Sonarr validation errors are returned as they are.
 
 Anyone holding the API key of the HTTP transport can add content. Set `MCP_READ_ONLY=true` to remove `add_movie` and `add_series` when you only want to browse.

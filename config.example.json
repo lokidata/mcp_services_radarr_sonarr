@@ -15,7 +15,9 @@
     "basePath": "/api/v3",
     "port": "8989",
     "defaultQualityProfile": "HD-1080p",
-    "defaultRootFolder": "/data/tv"
+    "defaultRootFolder": "/data/tv",
+    "animeDefaultQualityProfile": "HD-1080p",
+    "animeDefaultRootFolder": "/data/anime"
   },
   "embyConfig": {
     "baseUrl": "http://192.168.1.10:8096",
