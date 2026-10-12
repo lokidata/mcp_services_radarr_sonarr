@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from typing import List, Dict, Any, Optional
 import requests
 from ..config import SonarrConfig
+from .arr_http import ArrHttp
 
 
 @dataclass
@@ -48,7 +49,7 @@ class Series:
             statistics = Statistics.from_dict(data['statistics'])
         
         return cls(
-            id=data['id'],
+            id=data.get('id') or 0,
             title=data['title'],
             year=data.get('year'),
             overview=data.get('overview', ''),
@@ -95,8 +96,10 @@ class Episode:
         )
 
 
-class SonarrService:
+class SonarrService(ArrHttp):
     """Service for interacting with Sonarr API."""
+
+    service_name = "Sonarr"
     
     def __init__(self, config: SonarrConfig):
         """Initialize the Sonarr service with configuration."""
@@ -178,3 +181,12 @@ class SonarrService:
         # This is an assumption - implementation may vary
         # Assuming 'watchlist' tag with ID 1 (adjust as needed)
         return 1 in (series.tags or [])
+
+    def lookup_series_by_tvdb(self, tvdb_id: int) -> Optional[Dict[str, Any]]:
+        """Sonarr lookup resource of one series, ready to be completed and added."""
+        results = self._call("GET", "series/lookup", params={"term": f"tvdb:{tvdb_id}"})
+        return next((r for r in results if r.get("tvdbId") == tvdb_id), None)
+
+    def add_series(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+        """Add a series to the library and return the created resource."""
+        return self._call("POST", "series", json=payload)
