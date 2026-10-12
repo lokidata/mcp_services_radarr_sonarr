@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from typing import List, Dict, Any, Optional
 import requests
 from ..config import RadarrConfig
+from .arr_http import ArrHttp
 
 
 @dataclass
@@ -24,7 +25,7 @@ class Movie:
     def from_dict(cls, data: Dict[str, Any]) -> 'Movie':
         """Create a Movie object from a dictionary."""
         return cls(
-            id=data['id'],
+            id=data.get('id') or 0,
             title=data['title'],
             year=data.get('year', 0),
             overview=data.get('overview', ''),
@@ -37,8 +38,10 @@ class Movie:
         )
 
 
-class RadarrService:
+class RadarrService(ArrHttp):
     """Service for interacting with Radarr API."""
+
+    service_name = "Radarr"
     
     def __init__(self, config: RadarrConfig):
         """Initialize the Radarr service with configuration."""
@@ -111,3 +114,11 @@ class RadarrService:
         # This is an assumption - implementation may vary
         # Assuming 'watchlist' tag with ID 1 (adjust as needed)
         return 1 in (movie.tags or [])
+
+    def lookup_movie_by_tmdb(self, tmdb_id: int) -> Optional[Dict[str, Any]]:
+        """Radarr lookup resource of one movie, ready to be completed and added."""
+        return self._call("GET", "movie/lookup/tmdb", params={"tmdbId": tmdb_id}) or None
+
+    def add_movie(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+        """Add a movie to the library and return the created resource."""
+        return self._call("POST", "movie", json=payload)

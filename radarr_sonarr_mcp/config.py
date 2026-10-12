@@ -45,6 +45,8 @@ class _ArrConfig:
     base_path: str = "/api/v3"
     port: str = ""
     host: str = ""  # filled from NasConfig by Config
+    default_quality_profile: str = ""  # name used by add_* tools when none is given
+    default_root_folder: str = ""  # path used by add_* tools when none is given
 
     @property
     def base_url(self) -> str:
@@ -109,6 +111,7 @@ class ServerConfig:
     api_key: str = ""  # required by the HTTP transport (clients send it as a Bearer token or X-API-Key)
     allow_no_auth: bool = False  # explicitly allow the HTTP transport without an API key
     allowed_hosts: List[str] = field(default_factory=list)  # extra Host header values (reverse proxy domain)
+    read_only: bool = False  # do not register the tools that add content
 
 
 @dataclass
@@ -129,20 +132,21 @@ class Config:
             if not cfg.port:
                 cfg.port = self.nas_config.port
 
+    @staticmethod
+    def _arr_to_dict(cfg: "_ArrConfig") -> Dict[str, Any]:
+        data = {"apiKey": cfg.api_key, "basePath": cfg.base_path, "port": cfg.port}
+        if cfg.default_quality_profile:
+            data["defaultQualityProfile"] = cfg.default_quality_profile
+        if cfg.default_root_folder:
+            data["defaultRootFolder"] = cfg.default_root_folder
+        return data
+
     def to_dict(self) -> Dict[str, Any]:
         """Serialize to the camelCase JSON layout used in config.json."""
         data: Dict[str, Any] = {
             "nasConfig": {"ip": self.nas_config.ip, "port": self.nas_config.port},
-            "radarrConfig": {
-                "apiKey": self.radarr_config.api_key,
-                "basePath": self.radarr_config.base_path,
-                "port": self.radarr_config.port,
-            },
-            "sonarrConfig": {
-                "apiKey": self.sonarr_config.api_key,
-                "basePath": self.sonarr_config.base_path,
-                "port": self.sonarr_config.port,
-            },
+            "radarrConfig": self._arr_to_dict(self.radarr_config),
+            "sonarrConfig": self._arr_to_dict(self.sonarr_config),
             "server": {"port": self.server_config.port, "host": self.server_config.host},
         }
         if self.server_config.api_key:
@@ -151,6 +155,8 @@ class Config:
             data["server"]["allowNoAuth"] = True
         if self.server_config.allowed_hosts:
             data["server"]["allowedHosts"] = self.server_config.allowed_hosts
+        if self.server_config.read_only:
+            data["server"]["readOnly"] = True
         if self.jellyfin_config.enabled:
             data["jellyfinConfig"] = {
                 "baseUrl": self.jellyfin_config.base_url,
@@ -185,11 +191,15 @@ class Config:
                 api_key=radarr.get("apiKey", ""),
                 base_path=radarr.get("basePath", "/api/v3"),
                 port=str(radarr.get("port", "7878")),
+                default_quality_profile=radarr.get("defaultQualityProfile", ""),
+                default_root_folder=radarr.get("defaultRootFolder", ""),
             ),
             sonarr_config=SonarrConfig(
                 api_key=sonarr.get("apiKey", ""),
                 base_path=sonarr.get("basePath", "/api/v3"),
                 port=str(sonarr.get("port", "8989")),
+                default_quality_profile=sonarr.get("defaultQualityProfile", ""),
+                default_root_folder=sonarr.get("defaultRootFolder", ""),
             ),
             jellyfin_config=JellyfinConfig(
                 base_url=jellyfin.get("baseUrl", ""),
@@ -211,6 +221,7 @@ class Config:
                 api_key=data.get("server", {}).get("apiKey", ""),
                 allow_no_auth=bool(data.get("server", {}).get("allowNoAuth", False)),
                 allowed_hosts=list(data.get("server", {}).get("allowedHosts", [])),
+                read_only=bool(data.get("server", {}).get("readOnly", False)),
             ),
         )
 
@@ -223,11 +234,15 @@ class Config:
                 api_key=env("RADARR_API_KEY", ""),
                 base_path=env("RADARR_BASE_PATH", "/api/v3"),
                 port=env("RADARR_PORT", "7878"),
+                default_quality_profile=env("RADARR_DEFAULT_QUALITY_PROFILE", ""),
+                default_root_folder=env("RADARR_DEFAULT_ROOT_FOLDER", ""),
             ),
             sonarr_config=SonarrConfig(
                 api_key=env("SONARR_API_KEY", ""),
                 base_path=env("SONARR_BASE_PATH", "/api/v3"),
                 port=env("SONARR_PORT", "8989"),
+                default_quality_profile=env("SONARR_DEFAULT_QUALITY_PROFILE", ""),
+                default_root_folder=env("SONARR_DEFAULT_ROOT_FOLDER", ""),
             ),
             jellyfin_config=JellyfinConfig(
                 base_url=env("JELLYFIN_BASE_URL", ""),
@@ -249,6 +264,7 @@ class Config:
                 api_key=env("MCP_API_KEY", ""),
                 allow_no_auth=env("MCP_ALLOW_NO_AUTH", "").lower() in ("1", "true", "yes"),
                 allowed_hosts=[h.strip() for h in env("MCP_ALLOWED_HOSTS", "").split(",") if h.strip()],
+                read_only=env("MCP_READ_ONLY", "").lower() in ("1", "true", "yes"),
             ),
         )
 
