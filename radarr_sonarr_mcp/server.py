@@ -9,7 +9,7 @@ from fastmcp import FastMCP
 
 from starlette.middleware import Middleware
 
-from .adding import AddError, movie_payload, resolve_profile, resolve_root_folder, series_payload
+from .adding import AddError, is_anime, movie_payload, resolve_profile, resolve_root_folder, series_payload
 from .auth import MIN_API_KEY_LENGTH, ApiKeyMiddleware
 from .config import Config, ConfigError, load_config
 from .services.arr_http import ArrError
@@ -287,6 +287,11 @@ class RadarrSonarrMCPServer:
                         "defaults": {"qualityProfile": cfg.default_quality_profile or None,
                                      "rootFolder": cfg.default_root_folder or None},
                     }
+                    if name == "sonarr":
+                        options[name]["defaults"]["anime"] = {
+                            "qualityProfile": cfg.anime_default_quality_profile or None,
+                            "rootFolder": cfg.anime_default_root_folder or None,
+                        }
                 except ArrError as e:
                     options[name] = {"error": str(e)}
             return json.dumps(options)
@@ -339,7 +344,8 @@ class RadarrSonarrMCPServer:
             quality_profile (name or id) and root_folder (path) default to the configured values;
             see get_add_options. `monitor` is all, future, missing, existing, firstSeason, lastSeason,
             latestSeason, pilot, recent, monitorSpecials, unmonitorSpecials or none.
-            series_type is standard, daily or anime (default: the one Sonarr detects).
+            series_type is standard, daily or anime. By default a series tagged with the Anime genre
+            is added as an anime, using the anime defaults (profile and root folder) when configured.
             No search for missing episodes is started unless search_now is true.
             """
             try:
@@ -351,18 +357,24 @@ class RadarrSonarrMCPServer:
                     return json.dumps({"error": "already in library",
                                        "existing": {"id": existing.id, "title": existing.title}})
                 cfg = self.config.sonarr_config
+                anime = is_anime(resource, series_type)
+                default_profile, default_folder = cfg.default_quality_profile, cfg.default_root_folder
+                if anime:  # the anime defaults come first when they are configured
+                    default_profile = cfg.anime_default_quality_profile or default_profile
+                    default_folder = cfg.anime_default_root_folder or default_folder
                 profile = resolve_profile(self.sonarr_service.get_quality_profiles(), quality_profile,
-                                          cfg.default_quality_profile)
+                                          default_profile)
                 folder = resolve_root_folder(self.sonarr_service.get_root_folders(), root_folder,
-                                             cfg.default_root_folder)
-                added = self.sonarr_service.add_series(
-                    series_payload(resource, profile, folder, monitor, series_type, search_now))
+                                             default_folder)
+                payload = series_payload(resource, profile, folder, monitor, series_type, search_now)
+                added = self.sonarr_service.add_series(payload)
             except (AddError, ArrError) as e:
                 return self._add_error(e)
             return json.dumps({
                 "added": {"id": added.get("id"), "title": added.get("title"), "year": added.get("year")},
                 "qualityProfile": profile["name"],
                 "rootFolder": folder["path"],
+                "seriesType": payload["seriesType"],
                 "monitor": monitor,
                 "searching": search_now,
             })

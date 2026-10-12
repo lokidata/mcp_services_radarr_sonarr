@@ -7,6 +7,7 @@ import pytest
 
 from radarr_sonarr_mcp.adding import (
     AddError,
+    is_anime,
     movie_payload,
     resolve_profile,
     resolve_root_folder,
@@ -399,3 +400,124 @@ def test_series_payload_uses_season_folders_whatever_the_lookup_says():
     payload = series_payload(resource, PROFILES[0], FOLDERS[0], monitor="all",
                              series_type=None, search_now=False)
     assert payload["seasonFolder"] is True
+
+
+# --- anime defaults ----------------------------------------------------------
+
+ANIME_RESOURCE = dict(LOOKUP_SERIES, genres=["Animation", "Anime"])
+ANIME_CONFIG = {"sonarrConfig": {
+    "defaultQualityProfile": "HD-1080p", "defaultRootFolder": "/data/movies",
+    "animeDefaultQualityProfile": "Any", "animeDefaultRootFolder": "/data/concerts",
+}}
+
+
+def test_anime_defaults_from_env(monkeypatch):
+    monkeypatch.setenv("SONARR_ANIME_DEFAULT_QUALITY_PROFILE", "HD-1080p")
+    monkeypatch.setenv("SONARR_ANIME_DEFAULT_ROOT_FOLDER", "/data/anime")
+    cfg = Config.from_env().sonarr_config
+    assert cfg.anime_default_quality_profile == "HD-1080p"
+    assert cfg.anime_default_root_folder == "/data/anime"
+
+
+def test_anime_defaults_roundtrip_in_file():
+    cfg = Config.from_dict(ANIME_CONFIG)
+    again = Config.from_dict(cfg.to_dict()).sonarr_config
+    assert again.anime_default_quality_profile == "Any"
+    assert again.anime_default_root_folder == "/data/concerts"
+
+
+def test_anime_defaults_are_empty_by_default():
+    cfg = Config().sonarr_config
+    assert cfg.anime_default_quality_profile == "" and cfg.anime_default_root_folder == ""
+
+
+@pytest.mark.parametrize("resource, series_type, expected", [
+    (LOOKUP_SERIES, None, False),
+    (ANIME_RESOURCE, None, True),                                  # genre Anime
+    (dict(LOOKUP_SERIES, genres=["anime"]), None, True),           # case insensitive
+    (dict(LOOKUP_SERIES, seriesType="anime"), None, True),         # Sonarr already knows it
+    (LOOKUP_SERIES, "anime", True),                                # explicit
+    (ANIME_RESOURCE, "standard", False),                           # explicit choice wins over the genre
+    (dict(LOOKUP_SERIES, seriesType="anime"), "daily", False),
+    (dict(LOOKUP_SERIES, genres=None), None, False),
+])
+def test_is_anime(resource, series_type, expected):
+    assert is_anime(resource, series_type) is expected
+
+
+def test_series_payload_detects_anime_from_the_genre():
+    payload = series_payload(ANIME_RESOURCE, PROFILES[0], FOLDERS[0], monitor="all",
+                             series_type=None, search_now=False)
+    assert payload["seriesType"] == "anime"
+
+
+def test_series_payload_keeps_an_explicit_type_over_the_genre():
+    payload = series_payload(ANIME_RESOURCE, PROFILES[0], FOLDERS[0], monitor="all",
+                             series_type="standard", search_now=False)
+    assert payload["seriesType"] == "standard"
+
+
+def _anime_tools(resource=ANIME_RESOURCE, config=ANIME_CONFIG):
+    tools, radarr, sonarr = _tools(Config.from_dict(config))
+    sonarr.lookup_series_by_tvdb.return_value = dict(resource)
+    return tools, sonarr
+
+
+def test_anime_uses_the_anime_defaults():
+    tools, sonarr = _anime_tools()
+    result = json.loads(tools["add_series"](1))
+    payload = sonarr.add_series.call_args.args[0]
+    assert (payload["qualityProfileId"], payload["rootFolderPath"]) == (1, "/data/concerts")
+    assert result["qualityProfile"] == "Any" and result["rootFolder"] == "/data/concerts"
+    assert result["seriesType"] == "anime"
+
+
+def test_a_standard_series_keeps_the_general_defaults():
+    tools, sonarr = _anime_tools(resource=LOOKUP_SERIES)
+    result = json.loads(tools["add_series"](1))
+    payload = sonarr.add_series.call_args.args[0]
+    assert (payload["qualityProfileId"], payload["rootFolderPath"]) == (4, "/data/movies")
+    assert result["seriesType"] == "standard"
+
+
+def test_explicit_arguments_win_over_the_anime_defaults():
+    tools, sonarr = _anime_tools()
+    json.loads(tools["add_series"](1, quality_profile="HD-1080p", root_folder="/data/movies"))
+    payload = sonarr.add_series.call_args.args[0]
+    assert (payload["qualityProfileId"], payload["rootFolderPath"]) == (4, "/data/movies")
+
+
+def test_explicit_anime_type_triggers_the_anime_defaults():
+    tools, sonarr = _anime_tools(resource=LOOKUP_SERIES)
+    result = json.loads(tools["add_series"](1, series_type="anime"))
+    assert result["qualityProfile"] == "Any" and result["rootFolder"] == "/data/concerts"
+    assert sonarr.add_series.call_args.args[0]["seriesType"] == "anime"
+
+
+def test_explicit_standard_type_on_an_anime_genre_uses_the_general_defaults():
+    tools, sonarr = _anime_tools()
+    result = json.loads(tools["add_series"](1, series_type="standard"))
+    assert result["qualityProfile"] == "HD-1080p" and result["rootFolder"] == "/data/movies"
+    assert result["seriesType"] == "standard"
+
+
+def test_anime_without_anime_defaults_falls_back_to_the_general_ones():
+    config = {"sonarrConfig": {"defaultQualityProfile": "HD-1080p", "defaultRootFolder": "/data/movies"}}
+    tools, sonarr = _anime_tools(config=config)
+    result = json.loads(tools["add_series"](1))
+    assert result["qualityProfile"] == "HD-1080p" and result["rootFolder"] == "/data/movies"
+    assert result["seriesType"] == "anime"
+
+
+def test_anime_default_that_does_not_exist_is_an_error_listing_the_options():
+    config = {"sonarrConfig": dict(ANIME_CONFIG["sonarrConfig"], animeDefaultRootFolder="/data/gone")}
+    tools, sonarr = _anime_tools(config=config)
+    result = json.loads(tools["add_series"](1))
+    assert "root folder" in result["error"] and result["options"] == ["/data/concerts", "/data/movies"]
+    sonarr.add_series.assert_not_called()
+
+
+def test_get_add_options_shows_the_anime_defaults():
+    tools, _, _ = _tools(Config.from_dict(ANIME_CONFIG))
+    defaults = json.loads(tools["get_add_options"]())["sonarr"]["defaults"]
+    assert defaults["anime"] == {"qualityProfile": "Any", "rootFolder": "/data/concerts"}

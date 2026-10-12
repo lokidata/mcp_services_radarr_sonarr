@@ -61,6 +61,8 @@ class RadarrConfig(_ArrConfig):
 @dataclass
 class SonarrConfig(_ArrConfig):
     port: str = "8989"
+    anime_default_quality_profile: str = ""  # used instead of the general default for anime
+    anime_default_root_folder: str = ""
 
 
 @dataclass
@@ -141,12 +143,21 @@ class Config:
             data["defaultRootFolder"] = cfg.default_root_folder
         return data
 
+    @classmethod
+    def _sonarr_to_dict(cls, cfg: "SonarrConfig") -> Dict[str, Any]:
+        data = cls._arr_to_dict(cfg)
+        if cfg.anime_default_quality_profile:
+            data["animeDefaultQualityProfile"] = cfg.anime_default_quality_profile
+        if cfg.anime_default_root_folder:
+            data["animeDefaultRootFolder"] = cfg.anime_default_root_folder
+        return data
+
     def to_dict(self) -> Dict[str, Any]:
         """Serialize to the camelCase JSON layout used in config.json."""
         data: Dict[str, Any] = {
             "nasConfig": {"ip": self.nas_config.ip, "port": self.nas_config.port},
             "radarrConfig": self._arr_to_dict(self.radarr_config),
-            "sonarrConfig": self._arr_to_dict(self.sonarr_config),
+            "sonarrConfig": self._sonarr_to_dict(self.sonarr_config),
             "server": {"port": self.server_config.port, "host": self.server_config.host},
         }
         if self.server_config.api_key:
@@ -200,6 +211,8 @@ class Config:
                 port=str(sonarr.get("port", "8989")),
                 default_quality_profile=sonarr.get("defaultQualityProfile", ""),
                 default_root_folder=sonarr.get("defaultRootFolder", ""),
+                anime_default_quality_profile=sonarr.get("animeDefaultQualityProfile", ""),
+                anime_default_root_folder=sonarr.get("animeDefaultRootFolder", ""),
             ),
             jellyfin_config=JellyfinConfig(
                 base_url=jellyfin.get("baseUrl", ""),
@@ -243,6 +256,8 @@ class Config:
                 port=env("SONARR_PORT", "8989"),
                 default_quality_profile=env("SONARR_DEFAULT_QUALITY_PROFILE", ""),
                 default_root_folder=env("SONARR_DEFAULT_ROOT_FOLDER", ""),
+                anime_default_quality_profile=env("SONARR_ANIME_DEFAULT_QUALITY_PROFILE", ""),
+                anime_default_root_folder=env("SONARR_ANIME_DEFAULT_ROOT_FOLDER", ""),
             ),
             jellyfin_config=JellyfinConfig(
                 base_url=env("JELLYFIN_BASE_URL", ""),
